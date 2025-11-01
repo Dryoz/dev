@@ -1860,6 +1860,20 @@ function renderMetricsDisplay(metricsValues) {
 function renderResults(data) {
   if (!moduleState.refs.resultsTable) return;
 
+  console.log('[renderResults] Starting with', data.length, 'rows');
+
+  // FIRST: Show results section and hide builder (so table is visible!)
+  const resultsCard = moduleState.root.querySelector('.ads-results-card');
+  if (resultsCard) {
+    resultsCard.style.display = 'block';
+    console.log('[renderResults] Results card now visible');
+  }
+
+  const builderCard = moduleState.root.querySelector('.ads-card:has(.ads-table-builder)');
+  if (builderCard) {
+    builderCard.style.display = 'none';
+  }
+
   // Calculate and render metrics
   if (moduleState.metrics.length > 0) {
     const metricsValues = calculateMetricsValues(data);
@@ -1882,16 +1896,16 @@ function renderResults(data) {
     moduleState.dataTableInstance.destroy();
     moduleState.dataTableInstance = null;
   }
-  
+
   // Build columns
   const columns = moduleState.selectedFields.map(field => ({
     title: `${moduleState.schema[field.table].label} - ${field.label}`,
     data: `${field.table}.${field.field}`,
     render: (data, type, row) => {
       if (field.type === 'currency') {
-        return new Intl.NumberFormat('de-CH', { 
-          style: 'currency', 
-          currency: 'CHF' 
+        return new Intl.NumberFormat('de-CH', {
+          style: 'currency',
+          currency: 'CHF'
         }).format(data || 0);
       } else if (field.type === 'number') {
         return new Intl.NumberFormat('de-CH').format(data || 0);
@@ -1903,7 +1917,7 @@ function renderResults(data) {
       return data || '';
     }
   }));
-  
+
   // Destroy existing DataTable instance
   if (moduleState.dataTableInstance) {
     try {
@@ -1992,18 +2006,8 @@ function renderResults(data) {
   if (moduleState.xAxis && moduleState.yAxis) {
     renderChart();
   }
-  
-  // Show results section after analysis
-  const resultsCard = moduleState.root.querySelector('.ads-results-card');
-  if (resultsCard) {
-    resultsCard.style.display = 'block';
-  }
-  
-  // Hide builder card
-  const builderCard = moduleState.root.querySelector('.ads-card:has(.ads-table-builder)');
-  if (builderCard) {
-    builderCard.style.display = 'none';
-  }
+
+  console.log('[renderResults] Complete');
 }
 
 function makeHeadersDraggable() {
