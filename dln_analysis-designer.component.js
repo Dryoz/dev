@@ -1762,20 +1762,121 @@ function performMockAnalysis(query) {
 function setLoadingState(loading) {
   if (moduleState.refs.analyzeBtn) {
     moduleState.refs.analyzeBtn.disabled = loading;
-    moduleState.refs.analyzeBtn.innerHTML = loading 
+    moduleState.refs.analyzeBtn.innerHTML = loading
       ? '<i class="bi bi-arrow-repeat" style="animation: spin 1s linear infinite"></i> Analysiere...'
       : '<i class="bi bi-play-fill"></i> Analyse ausführen';
   }
 }
 
+function calculateMetricsValues(data) {
+  const metricsValues = [];
+
+  moduleState.metrics.forEach(metric => {
+    if (!metric.field) return;
+
+    const fieldKey = metric.field;
+    const values = data.map(row => {
+      const val = row[fieldKey];
+      return parseFloat(val) || 0;
+    }).filter(v => !isNaN(v));
+
+    let result = 0;
+    let label = metric.label || fieldKey;
+
+    switch (metric.aggregation) {
+      case 'COUNT':
+        result = data.length;
+        label = metric.label || `Anzahl ${fieldKey}`;
+        break;
+      case 'SUM':
+        result = values.reduce((sum, v) => sum + v, 0);
+        label = metric.label || `Summe ${fieldKey}`;
+        break;
+      case 'AVG':
+        result = values.length > 0 ? values.reduce((sum, v) => sum + v, 0) / values.length : 0;
+        label = metric.label || `Durchschnitt ${fieldKey}`;
+        break;
+      case 'MIN':
+        result = values.length > 0 ? Math.min(...values) : 0;
+        label = metric.label || `Minimum ${fieldKey}`;
+        break;
+      case 'MAX':
+        result = values.length > 0 ? Math.max(...values) : 0;
+        label = metric.label || `Maximum ${fieldKey}`;
+        break;
+      default:
+        result = 0;
+    }
+
+    metricsValues.push({
+      label: label,
+      value: result,
+      aggregation: metric.aggregation,
+      fieldKey: fieldKey
+    });
+  });
+
+  return metricsValues;
+}
+
+function renderMetricsDisplay(metricsValues) {
+  let metricsDisplay = moduleState.root.querySelector('.ads-metrics-display');
+
+  // Create metrics display container if it doesn't exist
+  if (!metricsDisplay) {
+    const resultsWrapper = moduleState.root.querySelector('.ads-results-wrapper');
+    if (!resultsWrapper) return;
+
+    metricsDisplay = document.createElement('div');
+    metricsDisplay.className = 'ads-metrics-display';
+    resultsWrapper.parentElement.insertBefore(metricsDisplay, resultsWrapper);
+  }
+
+  if (metricsValues.length === 0) {
+    metricsDisplay.style.display = 'none';
+    return;
+  }
+
+  metricsDisplay.style.display = 'grid';
+
+  let html = '';
+  metricsValues.forEach(metric => {
+    const formattedValue = new Intl.NumberFormat('de-CH', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 2
+    }).format(metric.value);
+
+    html += `
+      <div class="ads-metric-card">
+        <div class="ads-metric-label">${metric.label}</div>
+        <div class="ads-metric-value">${formattedValue}</div>
+      </div>
+    `;
+  });
+
+  metricsDisplay.innerHTML = html;
+}
+
 function renderResults(data) {
   if (!moduleState.refs.resultsTable) return;
-  
+
+  // Calculate and render metrics
+  if (moduleState.metrics.length > 0) {
+    const metricsValues = calculateMetricsValues(data);
+    renderMetricsDisplay(metricsValues);
+  } else {
+    // Clear metrics display if no metrics
+    const metricsDisplay = moduleState.root.querySelector('.ads-metrics-display');
+    if (metricsDisplay) {
+      metricsDisplay.style.display = 'none';
+    }
+  }
+
   // Update count
   if (moduleState.refs.resultsCount) {
     moduleState.refs.resultsCount.textContent = `${data.length} Ergebnisse`;
   }
-  
+
   // Destroy existing DataTable
   if (moduleState.dataTableInstance) {
     moduleState.dataTableInstance.destroy();
@@ -2086,121 +2187,6 @@ function setupTableDoubleClick() {
   });
 }
 
-function setupDropZones() {
-  // Filter Drop Zone
-  const filterZone = moduleState.root.querySelector('[data-ref="filtersDropZone"]');
-  if (filterZone) {
-    setupFilterDropZone(filterZone);
-  }
-  
-  // Metrics Drop Zone
-  const metricsZone = moduleState.root.querySelector('[data-ref="metricsDropZone"]');
-  if (metricsZone) {
-    setupMetricsDropZone(metricsZone);
-  }
-  
-  // Chart Axis Drop Zones
-  const xAxisZone = moduleState.root.querySelector('[data-ref="xAxisDropZone"]');
-  const yAxisZone = moduleState.root.querySelector('[data-ref="yAxisDropZone"]');
-  if (xAxisZone) setupAxisDropZone(xAxisZone, 'x');
-  if (yAxisZone) setupAxisDropZone(yAxisZone, 'y');
-}
-
-function setupFilterDropZone(zone) {
-  ['dragenter', 'dragover'].forEach(ev =>
-    zone.addEventListener(ev, (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      zone.classList.add('drag-over');
-    })
-  );
-  
-  ['dragleave', 'drop'].forEach(ev =>
-    zone.addEventListener(ev, (e) => {
-      e.stopPropagation();
-      zone.classList.remove('drag-over');
-    })
-  );
-  
-  zone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    const raw = e.dataTransfer.getData('application/json');
-    if (!raw || raw === 'undefined') return;
-    
-    let data;
-    try { data = JSON.parse(raw); } catch { return; }
-    if (!data || !data.table || !data.field) return;
-    
-    // Add filter with value if it's a cell drag
-    if (data.isCellDrag && data.value) {
-      addQuickFilter(data.table, data.field, data.value);
-    } else {
-      // Add empty filter for header drag
-      addQuickFilter(data.table, data.field, '');
-    }
-  });
-}
-
-function setupMetricsDropZone(zone) {
-  ['dragenter', 'dragover'].forEach(ev =>
-    zone.addEventListener(ev, (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      zone.classList.add('drag-over');
-    })
-  );
-  
-  ['dragleave', 'drop'].forEach(ev =>
-    zone.addEventListener(ev, (e) => {
-      e.stopPropagation();
-      zone.classList.remove('drag-over');
-    })
-  );
-  
-  zone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    const raw = e.dataTransfer.getData('application/json');
-    if (!raw || raw === 'undefined') return;
-    
-    let data;
-    try { data = JSON.parse(raw); } catch { return; }
-    if (!data || !data.table || !data.field) return;
-    
-    // Only numeric fields for metrics
-    const fieldDef = moduleState.schema[data.table]?.fields?.find(f => f.name === data.field);
-    if (!fieldDef) return;
-    
-    const numericTypes = ['number', 'currency', 'percent'];
-    if (!numericTypes.includes(fieldDef.type)) {
-      showNotification('⚠️ Nur numerische Felder können als Metriken verwendet werden', 'warning');
-      return;
-    }
-    
-    // Add metric
-    addQuickMetric(data.table, data.field);
-  });
-}
-
-function addQuickMetric(table, field) {
-  const fieldKey = `${table}.${field}`;
-  
-  // Check if already exists
-  const exists = moduleState.metrics.find(m => m.field === fieldKey);
-  if (exists) {
-    showNotification('Diese Metrik existiert bereits', 'warning');
-    return;
-  }
-  
-  moduleState.metrics.push({
-    id: Date.now(),
-    field: fieldKey,
-    aggregation: 'SUM',
-    label: ''
-  });
-  
-  renderMetrics();
-  showNotification(`Metrik hinzugefügt: ${table}.${field}`, 'success');
-}
 
 function setupAxisDropZone(zone, axis) {
   ['dragenter', 'dragover'].forEach(ev =>

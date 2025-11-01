@@ -940,6 +940,43 @@
    RESULTS
    ============================================================================ */
 
+.ads-root .ads-metrics-display {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding: 0;
+}
+
+.ads-root .ads-metric-card {
+  background: linear-gradient(135deg, var(--ads-primary) 0%, var(--ads-primary-dark) 100%);
+  color: white;
+  padding: 1.25rem 1.5rem;
+  border-radius: var(--ads-radius);
+  box-shadow: 0 2px 8px var(--ads-shadow);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.ads-root .ads-metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px var(--ads-shadow-lg);
+}
+
+.ads-root .ads-metric-label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  opacity: 0.9;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ads-root .ads-metric-value {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
 .ads-root .ads-results-wrapper {
   overflow-x: auto;
 }
