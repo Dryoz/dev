@@ -2009,143 +2009,167 @@ function renderResults(data) {
 function makeHeadersDraggable() {
   setTimeout(() => {
     const table = moduleState.refs.resultsTable;
-    if (!table) return;
-    
+    if (!table) {
+      console.warn('[drag] resultsTable not found');
+      return;
+    }
+
     const thead = table.querySelector('thead');
-    if (!thead) return;
-    
+    if (!thead) {
+      console.warn('[drag] thead not found');
+      return;
+    }
+
     const headers = Array.from(thead.querySelectorAll('th'));
     const selectedFields = moduleState.selectedFields;
-    
+
+    console.log(`[drag] Making ${headers.length} headers draggable`);
+
     headers.forEach((header, idx) => {
       header.draggable = true;
-    
-    if (selectedFields[idx]) {
-      header.dataset.col = `${selectedFields[idx].table}.${selectedFields[idx].field}`;
-    }
-    
-    header.style.position = 'relative';
-    header.style.overflow = 'visible';
-    header.style.paddingRight = '2.8rem';
-    
-    if (!header.dataset.behavior) header.dataset.behavior = 'none';
-    if (!header.dataset.view) header.dataset.view = 'right';
-    if (!header.dataset.linkTemplate) header.dataset.linkTemplate = '';
-    
-    const hint = document.createElement('span');
-    hint.className = 'drag-hint';
-    hint.textContent = '⋮⋮';
-    hint.style.position = 'absolute';
-    hint.style.top = '0.5rem';
-    hint.style.right = '0.6rem';
-    hint.style.lineHeight = '1';
-    hint.style.userSelect = 'none';
-    hint.style.pointerEvents = 'none';
-    hint.style.opacity = '0.4';
-    hint.style.transition = 'opacity 0.2s';
-    header.appendChild(hint);
-    
-    header.addEventListener('dragstart', (e) => {
-      const columnKey = header.dataset.col;
-      const field = columnKey ? selectedFields.find(f => `${f.table}.${f.field}` === columnKey) : null;
-      if (!field) {
-        showNotification('⚠️ Ungültiges Drag-&-Drop-Objekt.', 'warning');
-        return;
+
+      if (selectedFields[idx]) {
+        header.dataset.col = `${selectedFields[idx].table}.${selectedFields[idx].field}`;
       }
-      e.dataTransfer.setData('application/json', JSON.stringify(field));
-      e.dataTransfer.effectAllowed = 'copy';
-      header.classList.add('dragging');
+
+      header.style.position = 'relative';
+      header.style.overflow = 'visible';
+      header.style.paddingRight = '2.8rem';
+
+      if (!header.dataset.behavior) header.dataset.behavior = 'none';
+      if (!header.dataset.view) header.dataset.view = 'right';
+      if (!header.dataset.linkTemplate) header.dataset.linkTemplate = '';
+
+      const hint = document.createElement('span');
+      hint.className = 'drag-hint';
+      hint.textContent = '⋮⋮';
+      hint.style.position = 'absolute';
+      hint.style.top = '0.5rem';
+      hint.style.right = '0.6rem';
+      hint.style.lineHeight = '1';
+      hint.style.userSelect = 'none';
+      hint.style.pointerEvents = 'none';
+      hint.style.opacity = '0.4';
+      hint.style.transition = 'opacity 0.2s';
+      header.appendChild(hint);
+
+      header.addEventListener('dragstart', (e) => {
+        console.log('[drag] Header drag start:', header.dataset.col);
+        const columnKey = header.dataset.col;
+        const field = columnKey ? selectedFields.find(f => `${f.table}.${f.field}` === columnKey) : null;
+        if (!field) {
+          console.warn('[drag] Invalid field for drag');
+          showNotification('⚠️ Ungültiges Drag-&-Drop-Objekt.', 'warning');
+          return;
+        }
+        e.dataTransfer.setData('application/json', JSON.stringify(field));
+        e.dataTransfer.effectAllowed = 'copy';
+        header.classList.add('dragging');
+      });
+
+      header.addEventListener('dragend', () => {
+        header.classList.remove('dragging');
+      });
+
+      header.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        const columnKey = header.dataset.col;
+        const field = columnKey ? selectedFields.find(f => `${f.table}.${f.field}` === columnKey) : null;
+        if (field) {
+          showHeaderContextMenu(e.pageX, e.pageY, field, header);
+        }
+      });
     });
-    
-    header.addEventListener('dragend', () => {
-      header.classList.remove('dragging');
-    });
-    
-    header.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
+
+    thead.addEventListener('contextmenu', (ev) => {
+      const header = ev.target.closest('th');
+      if (!header) return;
+      ev.preventDefault();
       const columnKey = header.dataset.col;
       const field = columnKey ? selectedFields.find(f => `${f.table}.${f.field}` === columnKey) : null;
       if (field) {
-        showHeaderContextMenu(e.pageX, e.pageY, field, header);
+        showHeaderContextMenu(ev.pageX, ev.pageY, field, header);
       }
     });
-  });
-  
-  thead.addEventListener('contextmenu', (ev) => {
-    const header = ev.target.closest('th');
-    if (!header) return;
-    ev.preventDefault();
-    const columnKey = header.dataset.col;
-    const field = columnKey ? selectedFields.find(f => `${f.table}.${f.field}` === columnKey) : null;
-    if (field) {
-      showHeaderContextMenu(ev.pageX, ev.pageY, field, header);
-    }
-  });
-  
-  const tbody = table.querySelector('tbody');
-  if (tbody) {
-    tbody.addEventListener('click', (e) => {
-      const cell = e.target.closest('td');
-      if (!cell) return;
-      const rowEl = cell.parentElement;
-      const colIndex = cell.cellIndex;
-      const header = headers[colIndex];
-      if (!header) return;
-      
-      const behavior = header.dataset.behavior || 'none';
-      if (behavior === 'none') return;
-      
-      const rowObj = {};
-      [...rowEl.children].forEach((td, i) => {
-        const key = headers[i]?.dataset?.col;
-        if (key) rowObj[key] = td.textContent.trim();
+
+    const tbody = table.querySelector('tbody');
+    if (tbody) {
+      tbody.addEventListener('click', (e) => {
+        const cell = e.target.closest('td');
+        if (!cell) return;
+        const rowEl = cell.parentElement;
+        const colIndex = cell.cellIndex;
+        const header = headers[colIndex];
+        if (!header) return;
+
+        const behavior = header.dataset.behavior || 'none';
+        if (behavior === 'none') return;
+
+        const rowObj = {};
+        [...rowEl.children].forEach((td, i) => {
+          const key = headers[i]?.dataset?.col;
+          if (key) rowObj[key] = td.textContent.trim();
+        });
+
+        if (behavior === 'datalink') {
+          const tpl = header.dataset.linkTemplate || '';
+          const url = tpl.replace(/\{([^}]+)\}/g, (_, k) => (rowObj[k] ?? ''));
+          dispatchEvent('analyse:datalink', {
+            url,
+            column: header.dataset.col,
+            view: header.dataset.view || 'right',
+            row: rowObj
+          });
+        } else if (behavior === 'subview') {
+          dispatchEvent('analyse:subview', {
+            variant: header.dataset.view || 'right',
+            column: header.dataset.col,
+            row: rowObj
+          });
+        }
       });
-      
-      if (behavior === 'datalink') {
-        const tpl = header.dataset.linkTemplate || '';
-        const url = tpl.replace(/\{([^}]+)\}/g, (_, k) => (rowObj[k] ?? ''));
-        dispatchEvent('analyse:datalink', {
-          url,
-          column: header.dataset.col,
-          view: header.dataset.view || 'right',
-          row: rowObj
-        });
-      } else if (behavior === 'subview') {
-        dispatchEvent('analyse:subview', {
-          variant: header.dataset.view || 'right',
-          column: header.dataset.col,
-          row: rowObj
-        });
-      }
-    });
-  }
-  
-  console.log('[analysis-designer] Headers made draggable');
-  }, 500);
+    }
+
+    console.log('[analysis-designer] Headers made draggable');
+  }, 1000); // Increased timeout to 1 second
 }
 
 function makeTableCellsDraggable() {
   const table = moduleState.refs.resultsTable;
-  if (!table) return;
-  
+  if (!table) {
+    console.warn('[drag] makeTableCellsDraggable: resultsTable not found');
+    return;
+  }
+
   const thead = table.querySelector('thead');
   const tbody = table.querySelector('tbody');
-  if (!thead || !tbody) return;
-  
+  if (!thead || !tbody) {
+    console.warn('[drag] makeTableCellsDraggable: thead or tbody not found');
+    return;
+  }
+
   const headers = Array.from(thead.querySelectorAll('th'));
-  
+  const cells = tbody.querySelectorAll('td');
+
+  console.log(`[drag] Making ${cells.length} cells draggable`);
+
   // Make all TD cells draggable
-  tbody.querySelectorAll('td').forEach(td => {
+  cells.forEach(td => {
     td.setAttribute('draggable', 'true');
-    
+
     td.addEventListener('dragstart', (e) => {
       const colIndex = td.cellIndex;
       const header = headers[colIndex];
       const key = header?.dataset?.col || '';
       const value = (td.textContent || '').trim();
-      
-      if (!key || value === '') return;
-      
+
+      console.log('[drag] Cell drag start:', key, '=', value);
+
+      if (!key || value === '') {
+        console.warn('[drag] Cell drag cancelled: no key or empty value');
+        return;
+      }
+
       const [tableName, fieldName] = key.split('.');
       const payload = {
         table: tableName,
@@ -2153,12 +2177,12 @@ function makeTableCellsDraggable() {
         value: value,
         isCellDrag: true
       };
-      
+
       e.dataTransfer.setData('application/json', JSON.stringify(payload));
       e.dataTransfer.effectAllowed = 'copy';
     });
   });
-  
+
   console.log('[analysis-designer] Table cells made draggable');
 }
 
@@ -2495,6 +2519,8 @@ function setupDropZones() {
 }
 
 function setupFilterDropZone(zone) {
+  console.log('[dropzone] Setting up filter drop zone');
+
   ['dragenter', 'dragover'].forEach(ev =>
     zone.addEventListener(ev, (e) => {
       e.preventDefault();
@@ -2502,32 +2528,52 @@ function setupFilterDropZone(zone) {
       zone.classList.add('drag-over');
     })
   );
-  
+
   ['dragleave', 'drop'].forEach(ev =>
     zone.addEventListener(ev, (e) => {
       e.stopPropagation();
       zone.classList.remove('drag-over');
     })
   );
-  
+
   zone.addEventListener('drop', (e) => {
     e.preventDefault();
+    console.log('[dropzone] Drop on filter zone');
     const raw = e.dataTransfer.getData('application/json');
-    if (!raw || raw === 'undefined') return;
-    
+    console.log('[dropzone] Dropped data:', raw);
+
+    if (!raw || raw === 'undefined') {
+      console.warn('[dropzone] No data in drop');
+      return;
+    }
+
     let data;
-    try { data = JSON.parse(raw); } catch { return; }
-    if (!data || !data.table || !data.field) return;
-    
+    try {
+      data = JSON.parse(raw);
+      console.log('[dropzone] Parsed data:', data);
+    } catch (err) {
+      console.error('[dropzone] Failed to parse JSON:', err);
+      return;
+    }
+
+    if (!data || !data.table || !data.field) {
+      console.warn('[dropzone] Invalid data structure');
+      return;
+    }
+
     if (data.isCellDrag && data.value) {
+      console.log('[dropzone] Adding filter with value:', data.value);
       addQuickFilter(data.table, data.field, data.value);
     } else {
+      console.log('[dropzone] Adding empty filter');
       addQuickFilter(data.table, data.field, '');
     }
   });
 }
 
 function setupMetricsDropZone(zone) {
+  console.log('[dropzone] Setting up metrics drop zone');
+
   ['dragenter', 'dragover'].forEach(ev =>
     zone.addEventListener(ev, (e) => {
       e.preventDefault();
@@ -2535,38 +2581,62 @@ function setupMetricsDropZone(zone) {
       zone.classList.add('drag-over');
     })
   );
-  
+
   ['dragleave', 'drop'].forEach(ev =>
     zone.addEventListener(ev, (e) => {
       e.stopPropagation();
       zone.classList.remove('drag-over');
     })
   );
-  
+
   zone.addEventListener('drop', (e) => {
     e.preventDefault();
+    console.log('[dropzone] Drop on metrics zone');
     const raw = e.dataTransfer.getData('application/json');
-    if (!raw || raw === 'undefined') return;
-    
+    console.log('[dropzone] Dropped data:', raw);
+
+    if (!raw || raw === 'undefined') {
+      console.warn('[dropzone] No data in drop');
+      return;
+    }
+
     let data;
-    try { data = JSON.parse(raw); } catch { return; }
-    if (!data || !data.table || !data.field) return;
-    
+    try {
+      data = JSON.parse(raw);
+      console.log('[dropzone] Parsed data:', data);
+    } catch (err) {
+      console.error('[dropzone] Failed to parse JSON:', err);
+      return;
+    }
+
+    if (!data || !data.table || !data.field) {
+      console.warn('[dropzone] Invalid data structure');
+      return;
+    }
+
     const table = moduleState.schema[data.table];
-    if (!table || !table.fields) return;
-    
-    const fieldDef = Array.isArray(table.fields) 
+    if (!table || !table.fields) {
+      console.warn('[dropzone] Table not found in schema');
+      return;
+    }
+
+    const fieldDef = Array.isArray(table.fields)
       ? table.fields.find(f => f.name === data.field)
       : table.fields[data.field];
-    
-    if (!fieldDef) return;
-    
+
+    if (!fieldDef) {
+      console.warn('[dropzone] Field not found in schema');
+      return;
+    }
+
     const numericTypes = ['number', 'currency', 'percent'];
     if (!numericTypes.includes(fieldDef.type)) {
+      console.log('[dropzone] Non-numeric field rejected:', fieldDef.type);
       showNotification('⚠️ Nur numerische Felder können als Metriken verwendet werden', 'warning');
       return;
     }
-    
+
+    console.log('[dropzone] Adding metric for field:', data.field);
     addQuickMetric(data.table, data.field);
   });
 }
