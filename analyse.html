@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analysis Designer</title>
+  
+  <!-- External Dependencies (Frameworks erlaubt) 
+   
+W:
+cd Sandbox
+C:\php\php.exe -S localhost:5500
+
+
+
+
+"Du darfst NIEMALS die str_replace, bash_tool, create_file, oder view Tools verwenden, es sei denn ich sage explizit 'JETZT AUSFÜHREN'.
+Du gibst MIR den Code im Chat aus in diesem Format:
+=== SUCHEN NACH: ===
+[exakter Code]
+=== ERSETZEN MIT: ===
+[neuer Code]
+=== DATEI: ===
+[Pfad]
+  -->
+  
+  <!-- WICHTIG: jQuery ZUERST laden (DataTables braucht es!) -->
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  
+  <!-- DataTables -->
+  <link rel="stylesheet" href="https://cdn.datatables.net/2.0.0/css/dataTables.dataTables.min.css">
+  <script src="https://cdn.datatables.net/2.0.0/js/dataTables.min.js"></script>
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
+  
+  <!-- Deine globalen Controller -->
+  <script src="/AnalyseDesigner/global-DataTables-controller.js"></script>
+  <script src="/AnalyseDesigner/global-controller.js"></script>
+  <link rel="stylesheet" href="/AnalyseDesigner/analyse-designer.css">  
+
+</head>
+<body>
+
+  <!-- Root Container -->
+  <div class="ads-root" data-feature="analysis-designer">
+    
+    <!-- Header -->
+    <header class="ads-header">
+      <div class="ads-header-left">
+        <div class="ads-logo" aria-label="Analysis Designer Logo">
+          <span class="ads-logo-icon">📊</span>
+        </div>
+        <div>
+          <h1 class="ads-header-title">Analysis Designer</h1>
+          <p class="ads-header-subtitle">Relationale Datenanalyse ohne Code</p>
+        </div>
+      </div>
+      
+      <div class="ads-header-actions">
+        <button class="ads-search-trigger" aria-label="Suche öffnen" aria-keyshortcuts="Control+K">
+          <i class="bi bi-search"></i>
+          <span>Suche...</span>
+          <kbd class="ads-kbd">Ctrl+K</kbd>
+        </button>
+        
+        <button class="ads-btn ads-btn-secondary" aria-label="Einstellungen">
+          <i class="bi bi-gear"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- Search Modal -->
+    <div class="ads-search-modal" role="dialog" aria-modal="true" aria-labelledby="search-title">
+      <div class="ads-search-dialog">
+        <div class="ads-search-input-wrapper">
+          <i class="bi bi-search ads-search-icon"></i>
+          <input 
+            type="text" 
+            class="ads-search-input" 
+            placeholder="Tabellen und Felder durchsuchen..."
+            aria-label="Suchfeld"
+            autocomplete="off"
+            spellcheck="false"
+          >
+        </div>
+        
+        <div class="ads-search-results" role="listbox" aria-label="Suchergebnisse">
+          <!-- Results populated by JS -->
+        </div>
+        
+        <div class="ads-search-footer">
+          <span class="ads-search-hint">
+            <kbd class="ads-kbd">↑</kbd>
+            <kbd class="ads-kbd">↓</kbd>
+            zum Navigieren
+          </span>
+          <span class="ads-search-hint">
+            <kbd class="ads-kbd">↵</kbd>
+            zum Auswählen
+          </span>
+          <span class="ads-search-hint">
+            <kbd class="ads-kbd">ESC</kbd>
+            zum Schließen
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="ads-main">
+      
+      <!-- Left Sidebar: Tables List -->
+      <aside class="ads-sidebar ads-sidebar-left">
+        
+        <!-- Tables List with Checkboxes -->
+        <section class="ads-card">
+          <div class="ads-card-header">
+            <h2 class="ads-card-title">
+              <i class="bi bi-table"></i>
+              Tabellen
+            </h2>
+          </div>
+          <div class="ads-card-body">
+            <div class="ads-tables-list">
+              <!-- Populated by JS: 
+              <div class="ads-table-item">
+                <div class="ads-table-header">
+                  <input type="checkbox" class="ads-table-checkbox">
+                  <span class="ads-table-icon">📊</span>
+                  <span class="ads-table-name">Account</span>
+                  <i class="bi bi-chevron-down ads-table-toggle"></i>
+                </div>
+                <div class="ads-table-fields" style="display: none;">
+                  <div class="ads-field-item">
+                    <input type="checkbox">
+                    <span>Name</span>
+                  </div>
+                </div>
+              </div>
+              -->
+            </div>
+          </div>
+        </section>
+
+      </aside>
+
+      <!-- Center: Table Builder -->
+      <section class="ads-content">
+        
+        <!-- Table Builder -->
+        <div class="ads-card">
+          <div class="ads-card-header">
+            <h2 class="ads-card-title">
+              <i class="bi bi-columns"></i>
+              Tabellen-Builder
+            </h2>
+            <div class="ads-card-actions">
+              <button class="ads-btn ads-btn-primary ads-analyze-btn">
+                <i class="bi bi-play-fill"></i>
+                Analyse ausführen
+              </button>
+            </div>
+          </div>
+          <div class="ads-card-body">
+            <div class="ads-table-builder">
+            <div class="ads-table-builder-empty">
+                <div class="ads-empty-state-icon">📋</div>
+                <h3 class="ads-empty-state-title">Keine Felder ausgewählt</h3>
+                <p class="ads-empty-state-text">
+                  Wähle links Tabellen und Felder mit Checkboxen aus
+                </p>
+              </div>
+              <div class="ads-selected-fields-list">
+                <!-- Populated by JS -->
+              </div>
+            </div>
+          </div><!-- Center: Dynamic Content (Builder OR Results) -->
+      <section class="ads-content">
+        
+        <!-- Results (hidden by default, shown after analysis) -->
+        <div class="ads-card ads-results-view" style="display: none;">
+        
+        <!-- Results (hidden until analysis runs) -->
+        <div class="ads-card ads-results-card" style="display: none;">
+          <div class="ads-card-header">
+            <h2 class="ads-card-title">
+              <i class="bi bi-table"></i>
+              Ergebnisse
+            </h2>
+            <div class="ads-card-actions">
+              <button class="ads-btn ads-btn-secondary ads-btn-sm ads-back-to-builder-btn">
+                <i class="bi bi-arrow-left"></i>
+                Zurück zum Builder
+              </button>
+              <span class="ads-results-count">0 Ergebnisse</span>
+              <button class="ads-btn ads-btn-secondary ads-btn-sm ads-export-csv-btn">
+                <i class="bi bi-filetype-csv"></i>
+                CSV
+              </button>
+              <button class="ads-btn ads-btn-secondary ads-btn-sm ads-export-excel-btn">
+                <i class="bi bi-filetype-xls"></i>
+                Excel
+              </button>
+            </div>
+          </div>
+          <div class="ads-card-body">
+            <div class="ads-results-wrapper">
+              <table class="ads-results-table" style="width: 100%;">
+                <!-- DataTable will populate this -->
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="ads-card">
+          <div class="ads-card-header">
+            <h2 class="ads-card-title">
+              <i class="bi bi-graph-up-arrow"></i>
+              Visualisierung
+            </h2>
+            <div class="ads-card-actions">
+              <select class="ads-chart-type-select" aria-label="Diagrammtyp">
+                <option value="bar">Balkendiagramm</option>
+                <option value="line">Liniendiagramm</option>
+                <option value="pie">Kreisdiagramm</option>
+                <option value="doughnut">Donut</option>
+              </select>
+            </div>
+          </div>
+          <div class="ads-card-body">
+            <div class="ads-chart-config">
+              <div class="ads-axis-config">
+                <label class="ads-axis-label">X-Achse</label>
+                <div class="ads-axis-drop-zone drop-zone" data-ref="xAxisDropZone">
+                  <span class="drop-zone-hint">Feld hier ablegen</span>
+                </div>
+              </div>
+              <div class="ads-axis-config">
+                <label class="ads-axis-label">Y-Achse</label>
+                <div class="ads-axis-drop-zone drop-zone" data-ref="yAxisDropZone">
+                  <span class="drop-zone-hint">Feld hier ablegen</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="ads-card-body">
+            <div class="ads-chart-wrapper">
+              <canvas class="ads-chart-canvas"></canvas>
+            </div>
+          </div>
+        </div>
+
+      </section>
+        </div>
+
+        <!-- Results -->
+        <div class="ads-card">
+          <div class="ads-card-header">
+            <h2 class="ads-card-title">
+              <i class="bi bi-table"></i>
+              Ergebnisse
+            </h2>
+            <div class="ads-card-actions">
+              <span class="ads-results-count">0 Ergebnisse</span>
+              <button class="ads-btn ads-btn-secondary ads-btn-sm ads-export-csv-btn">
+                <i class="bi bi-filetype-csv"></i>
+                CSV
+              </button>
+              <button class="ads-btn ads-btn-secondary ads-btn-sm ads-export-excel-btn">
+                <i class="bi bi-filetype-xls"></i>
+                Excel
+              </button>
+            </div>
+          </div>
+          <div class="ads-card-body">
+            <div class="ads-results-wrapper">
+              <table class="ads-results-table" style="width: 100%;">
+                <!-- DataTable will populate this -->
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Right Sidebar: Filters & Metrics -->
+      <aside class="ads-sidebar ads-sidebar-right">
+        
+        <!-- Filters -->
+        <section class="ads-card">
+          <div class="ads-card-header">
+            <h2 class="ads-card-title">
+              <i class="bi bi-funnel"></i>
+              Filter
+            </h2>
+            <label class="ads-toggle-switch">
+              <input type="checkbox" class="ads-filter-logic-switch" aria-label="Filter Logik umschalten">
+              <span class="ads-toggle-slider"></span>
+              <span class="ads-toggle-label">OR</span>
+            </label>
+          </div>
+          <div class="ads-card-body">
+            <div class="ads-filters-list drop-zone" data-ref="filtersDropZone">
+              <div class="ads-empty-state drop-zone-hint">Keine Filter - Ziehe Felder hierher</div>
+            </div>
+            <button class="ads-btn ads-btn-secondary ads-btn-sm ads-add-filter-btn" style="width: 100%; margin-top: 0.75rem;">
+              <i class="bi bi-plus-circle"></i>
+              Filter hinzufügen
+            </button>
+          </div>
+        </section>
+
+        <!-- Metrics -->
+        <section class="ads-card">
+          <div class="ads-card-header">
+            <h2 class="ads-card-title">
+              <i class="bi bi-bar-chart"></i>
+              Metriken
+            </h2>
+          </div>
+          <div class="ads-card-body">
+            <div class="ads-metrics-list drop-zone" data-ref="metricsDropZone">
+              <div class="ads-empty-state drop-zone-hint">Keine Metriken - Ziehe numerische Felder hierher</div>
+            </div>
+            <button class="ads-btn ads-btn-secondary ads-btn-sm ads-add-metric-btn" style="width: 100%; margin-top: 0.75rem;">
+              <i class="bi bi-plus-circle"></i>
+              Metrik hinzufügen
+            </button>
+          </div>
+        </section>
+
+      </aside>
+
+    </main>
+
+  </div>
+
+  <!-- Analysis Designer Module (NACH Config laden!) -->
+<!-- Analysis Designer Module (NACH Config laden!) -->
+  <script src="/AnalyseDesigner/dln_analysis-designer.component.js"></script>
+
+</body>
+</html>
