@@ -1,0 +1,4699 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Relational Analysis Tool</title>
+  
+  <!-- jQuery MUSS ZUERST kommen https://claude.ai/chat/20a462a3-fc46-48c5-919b-95b1dffe20cd -->
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/datatables/1.10.21/css/jquery.dataTables.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
+  <script src="https://cdn.datatables.net/2.0.0/js/dataTables.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+  
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --surface-hover: #f1f5f9;
+      --primary: #2563eb;
+      --primary-light: #3b82f6;
+      --primary-dark: #1e40af;
+      --accent: #0891b2;
+      --success: #059669;
+      --warning: #d97706;
+      --danger: #dc2626;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --shadow: rgba(15, 23, 42, 0.08);
+      --shadow-lg: rgba(15, 23, 42, 0.15);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    /* Header */
+    .header {
+      background: var(--surface);
+      padding: 1.25rem 2rem;
+      border-bottom: 2px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 1px 3px var(--shadow);
+    }
+
+    .header-left { display: flex; align-items: center; gap: 1rem; }
+
+    .logo {
+      width: 44px; height: 44px;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+    }
+
+    .header h1 { font-size: 1.375rem; font-weight: 700; color: var(--text); }
+    .header-subtitle { font-size: 0.8125rem; color: var(--text-muted); margin-top: 0.125rem; }
+    .header-actions { display: flex; gap: 0.75rem; align-items: center; }
+
+    .search-trigger {
+      display: flex; align-items: center; gap: 0.625rem;
+      padding: 0.625rem 1rem;
+      background: var(--surface-hover);
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      color: var(--text-muted);
+      font-size: 0.875rem;
+    }
+
+    .search-trigger:hover {
+      border-color: var(--primary);
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    .kbd {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.125rem 0.375rem;
+      font-size: 0.75rem;
+      font-family: monospace;
+      box-shadow: 0 1px 2px var(--shadow);
+    }
+
+    .btn {
+      padding: 0.625rem 1.25rem;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.875rem;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+      box-shadow: 0 1px 3px rgba(37, 99, 235, 0.3);
+    }
+
+    .btn-primary:hover {
+      background: var(--primary-dark);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(37, 99, 235, 0.3);
+    }
+
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+      border: 1.5px solid var(--border);
+    }
+
+    .btn-secondary:hover { border-color: var(--primary); color: var(--primary); }
+
+    /* Search Modal */
+    .search-modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.4);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      animation: fadeIn 0.2s ease;
+    }
+
+    .search-modal.active {
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding-top: 15vh;
+    }
+
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+    .search-dialog {
+      background: var(--surface);
+      border-radius: 12px;
+      box-shadow: 0 20px 60px var(--shadow-lg);
+      width: 90%;
+      max-width: 640px;
+      max-height: 70vh;
+      display: flex;
+      flex-direction: column;
+      animation: slideDown 0.3s ease;
+      border: 1px solid var(--border);
+    }
+
+    .search-input-wrapper {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .search-icon { font-size: 1.25rem; color: var(--text-muted); }
+    .search-input {
+      flex: 1; border: none; outline: none;
+      font-size: 1rem; color: var(--text);
+      background: transparent;
+    }
+    .search-input::placeholder { color: var(--text-muted); }
+    .search-results { overflow-y: auto; max-height: calc(70vh - 80px); }
+
+    .search-category {
+      padding: 0.75rem 1.5rem 0.5rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      letter-spacing: 0.05em;
+    }
+
+    .search-item {
+      padding: 0.875rem 1.5rem;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      border-left: 3px solid transparent;
+      display: flex;
+      align-items: center;
+      gap: 0.875rem;
+    }
+
+    .search-item:hover, .search-item.selected {
+      background: var(--surface-hover);
+      border-left-color: var(--primary);
+    }
+
+    .search-item-icon {
+      width: 36px; height: 36px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.125rem;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      color: white;
+      flex-shrink: 0;
+    }
+
+    .search-item-content { flex: 1; min-width: 0; }
+    .search-item-title {
+      font-weight: 600;
+      font-size: 0.9375rem;
+      color: var(--text);
+      margin-bottom: 0.125rem;
+    }
+    .search-item-meta { font-size: 0.8125rem; color: var(--text-muted); }
+
+    .search-badge {
+      background: #eff6ff;
+      color: var(--primary);
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      margin-left: 0.375rem;
+    }
+
+    .search-footer {
+      padding: 0.75rem 1.5rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 1rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .search-hint { display: flex; align-items: center; gap: 0.375rem; }
+
+    /* Main Layout */
+    .container {
+      display: grid;
+      grid-template-columns: 340px minmax(0, 1fr) 400px;
+      gap: 1.5rem;
+      padding: 1.5rem;
+      height: calc(100vh - 105px);
+      overflow: hidden;
+    }
+
+    .container.results-mode {
+      grid-template-columns: 1fr;
+      padding: 2rem 4rem;
+    }
+
+.panel {
+      background: var(--surface);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 1px 3px var(--shadow);
+      min-width: 0;
+    }
+
+    .panel-header {
+      padding: 1.125rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .panel-title {
+      font-weight: 700;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text);
+    }
+
+    .panel-subtitle {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+
+    .panel-body {
+      padding: 1.5rem;
+      overflow-y: auto;
+      overflow-x: hidden;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .panel-body > div {
+      max-width: 100%;
+    }
+
+    /* DataTable Container Fix */
+    #dataTable_wrapper {
+      max-width: 100%;
+      overflow-x: auto;
+    }
+
+    #dataTable {
+      max-width: 100% !important;
+      table-layout: fixed;
+    }
+
+    #dataTable th,
+    #dataTable td {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 200px;
+    }    
+
+    /* Relationship Flow */
+    .relationship-flow {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .flow-title {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .flow-chain { display: flex; flex-direction: column; gap: 0.75rem; }
+
+    .flow-node {
+      background: var(--surface);
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      padding: 0.875rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      transition: all 0.2s ease;
+    }
+
+    .flow-node.active {
+      border-color: var(--primary);
+      background: #eff6ff;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+
+    .flow-node-icon {
+      width: 32px; height: 32px;
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      color: white;
+      flex-shrink: 0;
+    }
+
+    .flow-node-info { flex: 1; }
+    .flow-node-name { font-weight: 600; font-size: 0.875rem; color: var(--text); }
+    .flow-node-rel { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.125rem; }
+
+    .flow-node-join {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-top: 0.5rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .flow-node-join select {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.25rem 0.5rem;
+      font-size: 0.75rem;
+      color: var(--text);
+    }
+
+    .flow-connector {
+      width: 2px;
+      height: 16px;
+      background: linear-gradient(to bottom, var(--border), var(--primary));
+      margin: 0 auto;
+      position: relative;
+    }
+
+    .flow-connector::after {
+      content: '↓';
+      position: absolute;
+      bottom: -8px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: var(--primary);
+      font-size: 0.875rem;
+    }
+
+    .table-list { display: flex; flex-direction: column; gap: 1rem; }
+
+    .table-item {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      transition: all 0.2s ease;
+    }
+
+    .table-item:hover {
+      border-color: var(--primary);
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.12);
+    }
+
+    .table-item.active {
+      border-color: var(--primary);
+      background: #eff6ff;
+    }
+
+    .table-header {
+      padding: 1rem 1.125rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      background: var(--surface);
+      transition: background 0.2s ease;
+    }
+
+    .table-item.active .table-header { background: #eff6ff; }
+    .table-header:hover { background: var(--surface-hover); }
+
+    .table-info { display: flex; align-items: center; gap: 0.75rem; }
+
+    .table-icon {
+      width: 32px; height: 32px;
+      border-radius: 7px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.125rem;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      color: white;
+    }
+
+    .table-name { font-weight: 600; font-size: 0.9375rem; color: var(--text); }
+    .table-count { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.125rem; }
+
+    .table-expand-icon {
+      color: var(--text-muted);
+      font-size: 1.125rem;
+      transition: transform 0.3s ease;
+    }
+
+    .table-item.expanded .table-expand-icon { transform: rotate(90deg); }
+
+    .table-fields {
+      padding: 0.5rem 0.75rem;
+      display: none;
+      background: #fafbfc;
+      border-top: 1px solid var(--border);
+    }
+
+    .table-item.expanded .table-fields { display: block; }
+
+    .field-item {
+      padding: 0.625rem 0.875rem;
+      display: flex;
+      align-items: center;
+      gap: 0.625rem;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: all 0.15s ease;
+    }
+
+    .field-item:hover { background: var(--surface); }
+
+    .field-item.foreign-key {
+      background: #f8fafc;
+      border-left: 3px solid #cbd5e1;
+    }
+
+    .field-item input[type="checkbox"] {
+      width: 17px; height: 17px;
+      cursor: pointer;
+      accent-color: var(--primary);
+    }
+
+    .field-label { flex: 1; font-size: 0.875rem; color: var(--text); }
+    .field-key-icon { font-size: 0.875rem; }
+
+    .field-type {
+      margin-left: auto;
+      font-size: 0.6875rem;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+
+    .field-type.text { background: #f1f5f9; color: #475569; }
+    .field-type.number { background: #d1fae5; color: #065f46; }
+    .field-type.date { background: #dbeafe; color: #1e40af; }
+
+    .add-table-btn {
+      width: 100%;
+      padding: 1rem;
+      background: transparent;
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-weight: 600;
+      font-size: 0.875rem;
+    }
+
+    .add-table-btn:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: #eff6ff;
+    }
+
+    /* Context Menu */
+    .context-menu {
+      display: none;
+      position: fixed;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 4px 20px var(--shadow-lg);
+      z-index: 2000;
+      min-width: 200px;
+      padding: 0.5rem 0;
+    }
+
+    .context-menu.active { display: block; }
+
+    .context-menu-item {
+      padding: 0.625rem 1rem;
+      cursor: pointer;
+      transition: background 0.15s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.875rem;
+    }
+
+    .context-menu-item:hover { background: var(--surface-hover); }
+
+    .context-menu-item input[type="checkbox"] {
+      width: 16px; height: 16px;
+      accent-color: var(--primary);
+    }
+
+    .context-menu-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 0.5rem 0;
+    }
+
+    /* DataTable */
+    table.dataTable {
+      width: 100% !important;
+      max-width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      background: var(--surface);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      display: block;
+      overflow-x: auto;
+    }
+    
+    table.dataTable thead,
+    table.dataTable tbody,
+    table.dataTable tfoot {
+      display: table;
+      width: 100%;
+      table-layout: auto;
+    }
+
+    table.dataTable thead th {
+      background: #f8fafc;
+      color: var(--text);
+      padding: 1rem;
+      font-weight: 600;
+      border-bottom: 2px solid var(--border);
+      cursor: move;
+      user-select: none;
+      position: relative;
+      font-size: 0.8125rem;
+    }
+
+    table.dataTable thead th:hover { background: #eff6ff; }
+    table.dataTable thead th.dragging { opacity: 0.5; cursor: grabbing; }
+
+    table.dataTable tbody td {
+      padding: 0.875rem 1rem;
+      border-bottom: 1px solid #f1f5f9;
+      color: var(--text);
+      font-size: 0.875rem;
+    }
+
+    table.dataTable tbody tr:hover { background: #fafbfc; }
+
+    table.dataTable tfoot th {
+      background: #f8fafc;
+      color: var(--text);
+      padding: 0.875rem 1rem;
+      font-weight: 600;
+      border-top: 2px solid var(--border);
+      font-size: 0.8125rem;
+    }
+
+    .drag-hint {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    table.dataTable thead th:hover .drag-hint { opacity: 1; }
+
+    /* Configuration */
+    .config-section { margin-bottom: 2rem; }
+
+    .config-section-title {
+      font-weight: 600;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      font-size: 0.875rem;
+      color: var(--text);
+    }
+
+    .metric-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .metric-card {
+      background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+      border: 1.5px solid var(--primary);
+      border-radius: 8px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .metric-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .metric-name {
+      font-weight: 600;
+      font-size: 0.875rem;
+      color: var(--primary-dark);
+    }
+
+    .metric-remove {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 1.125rem;
+      padding: 0;
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+
+    .metric-remove:hover {
+      background: rgba(220, 38, 38, 0.1);
+      color: var(--danger);
+    }
+
+    .metric-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .metric-field {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .drop-zone {
+      min-height: 120px;
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      transition: all 0.2s ease;
+      background: #fafbfc;
+    }
+
+    .drop-zone.drag-over {
+      border-color: var(--primary);
+      background: #eff6ff;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+
+    .drop-zone.empty { align-items: center; justify-content: center; }
+    .drop-zone-hint { color: var(--text-muted); font-size: 0.8125rem; text-align: center; }
+
+    .filter-item {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      padding: 0.875rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.625rem;
+      transition: all 0.2s ease;
+    }
+
+    .filter-item:hover {
+      border-color: var(--primary);
+      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.1);
+    }
+
+    .filter-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .filter-field { font-weight: 600; font-size: 0.875rem; color: var(--primary); }
+
+    .filter-remove {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 1.25rem;
+      padding: 0;
+      width: 24px;
+      height: 24px;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+
+    .filter-remove:hover { background: #fee2e2; color: var(--danger); }
+
+    .filter-controls {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .filter-controls select, .filter-controls input {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: 6px;
+      padding: 0.5rem;
+      color: var(--text);
+      font-size: 0.875rem;
+    }
+
+    .filter-controls select:focus, .filter-controls input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+
+    .chart-config {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+
+    .axis-drop-zone {
+      min-height: 80px;
+      border: 2px dashed var(--border);
+      border-radius: 8px;
+      padding: 0.75rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      background: #fafbfc;
+    }
+
+    .axis-drop-zone.drag-over {
+      border-color: var(--primary);
+      background: #eff6ff;
+    }
+
+    .axis-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+    }
+
+    .axis-field {
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      color: white;
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+
+    /* Results */
+    .results-container { display: none; }
+    .results-container.active { display: block; }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .kpi-card {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 1.5rem;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.2s ease;
+    }
+
+    .kpi-card:hover {
+      border-color: var(--primary);
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.12);
+    }
+
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--primary), var(--accent));
+    }
+
+    .kpi-label {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+      font-weight: 500;
+    }
+
+    .kpi-value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+      border-bottom: 2px solid var(--border);
+      margin-bottom: 1.5rem;
+    }
+
+    .tab {
+      padding: 0.875rem 1.5rem;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-weight: 600;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s ease;
+      position: relative;
+      top: 2px;
+      font-size: 0.9375rem;
+    }
+
+    .tab:hover { color: var(--text); }
+    .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+    .tab-content { display: none; animation: fadeInContent 0.3s ease; }
+    .tab-content.active { display: block; }
+
+    @keyframes fadeInContent {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .chart-container {
+      background: var(--surface);
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      border: 1.5px solid var(--border);
+      max-height: 460px;
+      overflow: auto;
+    }
+    .chart-container canvas{
+      height: 420px !important;
+      width: 100% !important;
+    }
+
+
+    .container.results-mode .panel:not(.results-container) { display: none; }
+
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 5px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    .empty-state { text-align: center; padding: 3rem; color: var(--text-muted); }
+    .empty-state-icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.5; }
+
+.link-toggle{
+      margin-left:.5rem; opacity:.6; cursor:pointer; user-select:none;
+    }
+    .link-toggle.active{ color: var(--warning); opacity:1; filter: drop-shadow(0 0 2px rgba(217,119,6,.35)); }
+
+    @keyframes slideIn {
+      from { transform: translateX(400px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    @keyframes slideOut {
+      from { transform: translateX(0); opacity: 1; }
+      to { transform: translateX(400px); opacity: 0; }
+    }
+
+    /* Preset List Items */
+    .preset-item {
+      padding: 1rem 1.5rem;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      border-left: 3px solid transparent;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .preset-item:hover, .preset-item.selected {
+      background: var(--surface-hover);
+      border-left-color: var(--primary);
+    }
+
+    .preset-item:last-child {
+      border-bottom: none;
+    }
+
+    .preset-item-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+
+    .preset-item-title {
+      font-weight: 600;
+      font-size: 0.9375rem;
+      color: var(--text);
+    }
+
+    .preset-item-meta {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+    }
+
+    .preset-item-actions {
+      display: flex;
+      gap: 0.5rem;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    .preset-item:hover .preset-item-actions {
+      opacity: 1;
+    }
+
+    .preset-action-btn {
+      background: transparent;
+      border: none;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      transition: all 0.2s;
+    }
+
+    .preset-action-btn:hover {
+      background: var(--surface);
+      color: var(--text);
+    }
+
+    .preset-action-btn.delete:hover {
+      background: #fee2e2;
+      color: var(--danger);
+    }
+
+    .preset-empty {
+      text-align: center;
+      padding: 3rem 1.5rem;
+      color: var(--text-muted);
+    }
+
+    .preset-empty-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+      opacity: 0.5;
+    }
+
+  </style>
+</head>
+<body>
+  <!-- Root Container - wird komplett per JavaScript gerendert -->
+  <div id="app"></div>
+
+<script>
+    // ============================================================================
+    // ANALYSE DESIGNER FRAMEWORK
+    // Modulares JavaScript Framework ohne jQuery
+    // ============================================================================
+    
+    const AnalyseDesignerFramework = (function() {
+      'use strict';
+
+      // ============================================================================
+      // PRIVATE STATE
+      // ============================================================================
+      
+      const state = {
+        schema: null,
+        mockData: null,
+        selectedFields: [],
+        filters: [],
+        metrics: [],
+        xAxis: null,
+        yAxis: null,
+        chartType: 'bar',
+        tableJoins: [],
+        joinFieldByTable: {},
+        columnAggregations: {},
+        lastAnalysisData: null,
+        dataTable: null,
+        resultsChart: null,
+        searchSelectedIndex: 0,
+        currentContextColumn: null
+      };
+
+      const observers = [];
+      const components = {};
+      const mountedInstances = new Map();
+
+      // ============================================================================
+      // OBSERVER PATTERN - STATE MANAGEMENT
+      // ============================================================================
+      
+      function notifyObservers(eventType, data) {
+        observers.forEach(observer => {
+          if (observer.eventType === eventType || observer.eventType === '*') {
+            observer.callback(data);
+          }
+        });
+      }
+
+      function subscribe(eventType, callback) {
+        observers.push({ eventType, callback });
+        return () => {
+          const index = observers.findIndex(o => o.callback === callback);
+          if (index > -1) observers.splice(index, 1);
+        };
+      }
+
+      // ============================================================================
+      // STATE GETTERS & SETTERS
+      // ============================================================================
+      
+      function getState(key) {
+        return key ? state[key] : { ...state };
+      }
+
+      function setState(key, value) {
+        const oldValue = state[key];
+        state[key] = value;
+        notifyObservers('stateChange', { key, value, oldValue });
+        notifyObservers(`stateChange:${key}`, { value, oldValue });
+      }
+
+      function updateState(updates) {
+        Object.keys(updates).forEach(key => {
+          setState(key, updates[key]);
+        });
+      }
+
+      // ============================================================================
+      // UTILITY FUNCTIONS
+      // ============================================================================
+      
+      function $(selector, context = document) {
+        return context.querySelector(selector);
+      }
+
+      function $$(selector, context = document) {
+        return Array.from(context.querySelectorAll(selector));
+      }
+
+      function createElement(html) {
+        const temp = document.createElement('div');
+        temp.innerHTML = html.trim();
+        return temp.firstChild;
+      }
+      
+      function emit(name, detail) {
+        document.dispatchEvent(new CustomEvent(name, { detail }));
+      }
+
+      function showNotification(message, type = 'success') {
+        const colors = {
+          success: 'linear-gradient(135deg, #10b981, #059669)',
+          error: 'linear-gradient(135deg, #ef4444, #dc2626)',
+          info: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+          warning: 'linear-gradient(135deg, #f59e0b, #d97706)'
+        };
+        
+        const notification = createElement(`
+          <div style="position: fixed; top: 80px; right: 20px; background: ${colors[type]}; 
+               color: white; padding: 1rem 1.5rem; border-radius: 10px; 
+               box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2); z-index: 9999; 
+               font-weight: 600; animation: slideIn 0.3s ease;">
+            ${message}
+          </div>
+        `);
+        
+        document.body.appendChild(notification);
+        setTimeout(() => {
+          notification.style.animation = 'slideOut 0.3s ease';
+          setTimeout(() => notification.remove(), 300);
+        }, 3000);
+      }
+
+      // ============================================================================
+      // COMPONENT REGISTRY
+      // ============================================================================
+      
+      function registerComponent(name, component) {
+        if (components[name]) {
+          console.warn(`Component "${name}" already registered. Overwriting...`);
+        }
+        components[name] = component;
+        console.log(`✅ Component registered: ${name}`);
+      }
+
+function getComponent(name) {
+        if (!components[name]) {
+          throw new Error(`Component "${name}" not found`);
+        }
+        return components[name];
+      }
+
+      // ============================================================================
+      // COMPONENT LIFECYCLE
+      // ============================================================================
+      
+function createComponentInstance(name, container, options = {}) {
+        const component = getComponent(name);
+        
+        const instance = {
+          name,
+          container,
+          options,
+          state: {},
+          refs: {},
+          mounted: false,
+          
+          render() {
+            if (component.template) {
+              if (typeof component.template === 'function') {
+                container.innerHTML = component.template.call(this, this.state, options);
+              } else {
+                container.innerHTML = component.template;
+              }
+              this.findRefs();
+            }
+            
+            if (component.afterRender) {
+              component.afterRender.call(this);
+            }
+          },
+          
+          findRefs() {
+            this.refs = {};
+            const refElements = container.querySelectorAll('[data-ref]');
+            refElements.forEach(el => {
+              const refName = el.getAttribute('data-ref');
+              this.refs[refName] = el;
+            });
+          },
+          
+          mount() {
+            if (this.mounted) return;
+            
+            if (component.beforeMount) {
+              component.beforeMount.call(this);
+            }
+            
+            this.render();
+            
+            if (component.mounted) {
+              component.mounted.call(this);
+            }
+            
+            this.mounted = true;
+          },
+          
+          unmount() {
+            if (!this.mounted) return;
+            
+            if (component.beforeUnmount) {
+              component.beforeUnmount.call(this);
+            }
+            
+            container.innerHTML = '';
+            this.refs = {};
+            this.mounted = false;
+            
+            if (component.unmounted) {
+              component.unmounted.call(this);
+            }
+          },
+          
+          update() {
+            if (!this.mounted) return;
+            this.render();
+          }
+        };
+        
+        // KRITISCH: Kopiere alle Custom-Methoden von der Komponente auf die Instanz
+        Object.keys(component).forEach(key => {
+          const value = component[key];
+          // Nur Funktionen kopieren, keine Lifecycle-Hooks oder template
+          if (typeof value === 'function' && 
+              !['beforeMount', 'mounted', 'beforeUnmount', 'unmounted', 'afterRender', 'template'].includes(key)) {
+            instance[key] = value.bind(instance);
+          }
+        });
+        
+        return instance;
+      }
+
+      // ============================================================================
+      // UTILITY FUNCTIONS
+      // ============================================================================
+
+      // ============================================================================
+      // MOUNT SYSTEM
+      // ============================================================================
+      
+      function mount(componentName, containerSelector, options = {}) {
+        const container = $(containerSelector);
+        
+        if (!container) {
+          throw new Error(`Container "${containerSelector}" not found`);
+        }
+        
+        // Unmount existing instance
+        if (mountedInstances.has(containerSelector)) {
+          const existing = mountedInstances.get(containerSelector);
+          existing.unmount();
+        }
+        
+        const instance = createComponentInstance(componentName, container, options);
+        instance.mount();
+        
+        mountedInstances.set(containerSelector, instance);
+        
+        console.log(`✅ Mounted: ${componentName} → ${containerSelector}`);
+        return instance;
+      }
+
+      function unmount(containerSelector) {
+        if (mountedInstances.has(containerSelector)) {
+          const instance = mountedInstances.get(containerSelector);
+          instance.unmount();
+          mountedInstances.delete(containerSelector);
+          console.log(`🗑️ Unmounted: ${containerSelector}`);
+        }
+      }
+
+      function bootstrap(config) {
+        const { root, initialState } = config;
+        
+        // Set initial state
+        if (initialState) {
+          updateState(initialState);
+        }
+        
+        // Render root component
+        const rootContainer = $(root);
+        if (!rootContainer) {
+          throw new Error(`Root container "${root}" not found`);
+        }
+        
+        // Mount App component
+        mount('App', root);
+        
+        console.log('🎉 App bootstrapped!');
+      }
+
+      // ============================================================================
+      // PUBLIC API
+      // ============================================================================
+      
+      const API = {
+        // State Management
+        getState,
+        setState,
+        updateState,
+        subscribe,
+        
+        // Component System
+        registerComponent,
+        getComponent,
+        mount,
+        unmount,
+        bootstrap,
+        
+        // Utilities
+        showNotification,
+        $,
+        $$,
+        createElement,
+        emit,
+        
+        version: '2.0.0',
+        name: 'AnalyseDesignerFramework'
+      };
+
+      return API;
+    })();
+
+// ============================================================================
+    // APP ROOT COMPONENT
+    // ============================================================================
+    
+    AnalyseDesignerFramework.registerComponent('App', {
+      template: `
+        <header class="header">
+          <div class="header-left">
+            <div class="logo">📊</div>
+            <div>
+              <h1>Relational Analysis</h1>
+              <div class="header-subtitle">Konfigurieren → Filtern → Gruppieren → Ergebnis</div>
+            </div>
+          </div>
+          <div class="header-actions" data-ref="headerActions"></div>
+        </header>
+        
+        <div class="container" data-ref="mainContainer">
+          <div data-ref="dataModelPanel"></div>
+          <div data-ref="previewPanel"></div>
+          <div data-ref="configPanel"></div>
+          <div data-ref="resultsPanel"></div>
+        </div>
+        
+        <div data-ref="modalsContainer"></div>
+      `,
+      
+      mounted() {
+        // Mount child components
+        AnalyseDesignerFramework.mount('HeaderActions', '[data-ref="headerActions"]');
+        AnalyseDesignerFramework.mount('DataModelPanel', '[data-ref="dataModelPanel"]');
+        AnalyseDesignerFramework.mount('PreviewPanel', '[data-ref="previewPanel"]');
+        AnalyseDesignerFramework.mount('ConfigPanel', '[data-ref="configPanel"]');
+        AnalyseDesignerFramework.mount('ResultsPanel', '[data-ref="resultsPanel"]');
+        AnalyseDesignerFramework.mount('ModalsContainer', '[data-ref="modalsContainer"]');
+        
+        // Setup keyboard shortcuts
+        this.setupKeyboardShortcuts();
+      },
+      
+      setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+            e.preventDefault();
+            const searchModal = document.querySelector('[data-ref="searchModal"]');
+            if (searchModal) searchModal.classList.add('active');
+          }
+          
+          if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+            e.preventDefault();
+            const saveModal = document.querySelector('[data-ref="presetSaveModal"]');
+            if (saveModal) saveModal.classList.add('active');
+          }
+          
+          if ((e.metaKey || e.ctrlKey) && e.key === 'o') {
+            e.preventDefault();
+            const loadModal = document.querySelector('[data-ref="presetLoadModal"]');
+            if (loadModal) loadModal.classList.add('active');
+          }
+          
+          if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+            e.preventDefault();
+            const selectedFields = AnalyseDesignerFramework.getState('selectedFields');
+            if (selectedFields.length > 0) {
+              AnalyseDesignerFramework.setState('triggerAnalysis', Date.now());
+            } else {
+              AnalyseDesignerFramework.showNotification('⚠️ Wähle zuerst Felder aus', 'warning');
+            }
+          }
+          
+          if (e.key === 'Escape') {
+            document.querySelectorAll('.search-modal.active').forEach(modal => {
+              modal.classList.remove('active');
+            });
+          }
+        });
+      }
+    });
+
+    // ============================================================================
+    // DATA SCHEMA
+    // ============================================================================
+    
+    const schema = {
+      tables: [
+        {
+          name: 'Account',
+          icon: '🏢',
+          fields: [
+            { name: 'Account_ID', type: 'number', key: true },
+            { name: 'Name', type: 'text' },
+            { name: 'Region', type: 'text' },
+            { name: 'Industry', type: 'text' },
+            { name: 'Annual_Revenue', type: 'number' }
+          ],
+          relationships: [
+            { toTable: 'Contact', type: '1:n', via: 'Account_ID', description: 'Ein Account hat mehrere Kontakte' },
+            { toTable: 'Opportunity', type: '1:n', via: 'Account_ID', description: 'Ein Account hat mehrere Opportunities' }
+          ]
+        },
+        {
+          name: 'Contact',
+          icon: '👤',
+          fields: [
+            { name: 'Contact_ID', type: 'number', key: true },
+            { name: 'Account_ID', type: 'number', foreign: true },
+            { name: 'Name', type: 'text' },
+            { name: 'Email', type: 'text' },
+            { name: 'Phone', type: 'text' },
+            { name: 'Title', type: 'text' }
+          ],
+          relationships: [
+            { toTable: 'Account', type: 'n:1', via: 'Account_ID', description: 'Mehrere Kontakte gehören zu einem Account' }
+          ]
+        },
+        {
+          name: 'Opportunity',
+          icon: '💼',
+          fields: [
+            { name: 'Opportunity_ID', type: 'number', key: true },
+            { name: 'Account_ID', type: 'number', foreign: true },
+            { name: 'Name', type: 'text' },
+            { name: 'Stage', type: 'text' },
+            { name: 'Amount', type: 'number' },
+            { name: 'Probability', type: 'number' },
+            { name: 'CloseDate', type: 'date' }
+          ],
+          relationships: [
+            { toTable: 'Account', type: 'n:1', via: 'Account_ID', description: 'Mehrere Opportunities gehören zu einem Account' }
+          ]
+        }
+      ]
+    };
+
+// ============================================================================
+    // HEADER ACTIONS COMPONENT
+    // ============================================================================
+    
+    AnalyseDesignerFramework.registerComponent('HeaderActions', {
+      template: `
+        <div class="search-trigger" data-ref="searchTrigger">
+          <span>🔍</span>
+          <span>Tabelle suchen...</span>
+          <span class="kbd">⌘K</span>
+        </div>
+        <button class="btn btn-secondary" data-ref="btnLoadDemo">🎲 Demo-Daten laden</button>
+        <button class="btn btn-secondary" data-ref="btnLoadPreset">📂 Preset laden</button>
+        <button class="btn btn-secondary" data-ref="btnSave">💾 Preset speichern</button>
+        <button class="btn btn-primary" data-ref="btnAnalyze">▶ Analysieren</button>
+      `,
+      
+      mounted() {
+        this.refs.searchTrigger.addEventListener('click', () => {
+          const searchModal = document.querySelector('[data-ref="searchModal"]');
+          if (searchModal) searchModal.classList.add('active');
+        });
+        
+        this.refs.btnLoadDemo.addEventListener('click', () => {
+          this.loadDemo();
+        });
+        
+        this.refs.btnLoadPreset.addEventListener('click', () => {
+          const loadModal = document.querySelector('[data-ref="presetLoadModal"]');
+          if (loadModal) loadModal.classList.add('active');
+        });
+        
+        this.refs.btnSave.addEventListener('click', () => {
+          const saveModal = document.querySelector('[data-ref="presetSaveModal"]');
+          if (saveModal) saveModal.classList.add('active');
+        });
+        
+        this.refs.btnAnalyze.addEventListener('click', () => {
+          const selectedFields = AnalyseDesignerFramework.getState('selectedFields');
+          if (selectedFields.length === 0) {
+            AnalyseDesignerFramework.showNotification('⚠️ Bitte wähle mindestens ein Feld aus!', 'warning');
+            return;
+          }
+          AnalyseDesignerFramework.setState('triggerAnalysis', Date.now());
+        });
+      },
+      
+      loadDemo() {
+        console.log('🎲 Loading demo data...');
+        
+        const schema = AnalyseDesignerFramework.getState('schema');
+        
+        AnalyseDesignerFramework.updateState({
+          selectedFields: [],
+          filters: [],
+          metrics: []
+        });
+        
+        const accountFields = schema.tables.find(t => t.name === 'Account').fields.filter(f => !f.foreign);
+        const opportunityFields = schema.tables.find(t => t.name === 'Opportunity').fields.filter(f => !f.foreign);
+        
+        const selectedFields = [];
+        [...accountFields, ...opportunityFields].forEach(field => {
+          const tableName = accountFields.includes(field) ? 'Account' : 'Opportunity';
+          selectedFields.push({ 
+            table: tableName, 
+            field: field.name, 
+            type: field.type 
+          });
+        });
+        
+        const metrics = [{
+          table: 'Opportunity',
+          field: 'Amount',
+          type: 'number',
+          aggregation: 'sum'
+        }];
+        
+        const xAxis = { table: 'Account', field: 'Region', type: 'text' };
+        const yAxis = { table: 'Opportunity', field: 'Amount', type: 'number' };
+        
+        AnalyseDesignerFramework.updateState({
+          selectedFields,
+          metrics,
+          xAxis,
+          yAxis
+        });
+        
+        AnalyseDesignerFramework.showNotification('✅ Demo-Daten geladen! Bereit zur Analyse (20 Accounts, 35 Opportunities)', 'success');
+      }
+    });
+
+    // API Endpoints Configuration
+  const API_ENDPOINTS = {
+    artifacts: '/mod_linkedinapp/php/analysis/artifacts.php',
+    artifactGet: '/mod_linkedinapp/php/analysis/artifact_get.php',
+    artifactSave: '/mod_linkedinapp/php/analysis/artifact_save.php',
+    data: '/mod_linkedinapp/php/analysis/data.php',
+    export: '/mod_linkedinapp/php/analysis/export.php',
+    presets: '/mod_linkedinapp/php/analysis/presets.php',
+    
+    // NEU: Join-Logik vom Server
+    getTableRelations: '/mod_linkedinapp/php/analysis/get_table_relations.php',
+    getJoinDefinition: '/mod_linkedinapp/php/analysis/get_join_definition.php',
+    executeAnalysis: '/mod_linkedinapp/php/analysis/execute_analysis.php'
+  };
+
+  // API Helper for future backend calls (currently unused)
+  const APIHelper = {
+    async call(endpoint, options = {}) {
+      if (location.protocol === 'file:') {
+        AnalyseDesignerFramework.showNotification('Fehler bei der Analyse: Datei-Modus (file://) – CORS blockiert Serveraufrufe. Öffne die Seite via http(s) oder nutze Demo-Daten.', 'error');
+        // Im Datei-Modus niemals einen Fehler werfen – friedlich zurückgeben, damit nichts crasht
+        return { _fileMode: true };
+      }
+      const response = await fetch(endpoint, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...options.headers
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
+      return await response.json();
+    }
+  };
+
+// ============================================================================
+    // MODALS CONTAINER COMPONENT
+    // ============================================================================
+    
+    AnalyseDesignerFramework.registerComponent('ModalsContainer', {
+      template: `
+        <div data-ref="searchModal"></div>
+        <div data-ref="contextMenu"></div>
+        <div data-ref="presetSaveModal"></div>
+        <div data-ref="presetLoadModal"></div>
+      `,
+      
+      mounted() {
+        AnalyseDesignerFramework.mount('SearchModal', '[data-ref="searchModal"]');
+        AnalyseDesignerFramework.mount('ContextMenu', '[data-ref="contextMenu"]');
+        AnalyseDesignerFramework.mount('PresetSaveModal', '[data-ref="presetSaveModal"]');
+        AnalyseDesignerFramework.mount('PresetLoadModal', '[data-ref="presetLoadModal"]');
+      }
+    });
+
+    // ============================================================================
+    // SEARCH MODAL COMPONENT
+    // ============================================================================
+    
+    AnalyseDesignerFramework.registerComponent('SearchModal', {
+      template: `
+        <div class="search-modal" data-ref="modal">
+          <div class="search-dialog">
+            <div class="search-input-wrapper">
+              <span class="search-icon">🔍</span>
+              <input type="text" class="search-input" data-ref="searchInput" placeholder="Tabelle oder Feld suchen..." autocomplete="off">
+            </div>
+            <div class="search-results" data-ref="searchResults"></div>
+            <div class="search-footer">
+              <span class="search-hint"><span class="kbd">⌘K</span> Suche</span>
+              <span class="search-hint"><span class="kbd">⌘S</span> Speichern</span>
+              <span class="search-hint"><span class="kbd">⌘O</span> Laden</span>
+              <span class="search-hint"><span class="kbd">⌘↵</span> Analysieren</span>
+              <span class="search-hint"><span class="kbd">↵</span> Auswählen</span>
+              <span class="search-hint"><span class="kbd">ESC</span> Schließen</span>
+            </div>
+          </div>
+        </div>
+      `,
+      
+      mounted() {
+        this.refs.modal.addEventListener('click', (e) => {
+          if (e.target === this.refs.modal) {
+            this.refs.modal.classList.remove('active');
+          }
+        });
+        
+        this.refs.searchInput.addEventListener('input', (e) => {
+          this.performSearch(e.target.value);
+        });
+        
+        this.refs.searchInput.addEventListener('keydown', (e) => {
+          const items = this.refs.searchResults.querySelectorAll('.search-item');
+          let searchSelectedIndex = AnalyseDesignerFramework.getState('searchSelectedIndex') || 0;
+          
+          if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            searchSelectedIndex = Math.min(searchSelectedIndex + 1, items.length - 1);
+            AnalyseDesignerFramework.setState('searchSelectedIndex', searchSelectedIndex);
+            this.updateSearchSelection();
+          } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            searchSelectedIndex = Math.max(searchSelectedIndex - 1, 0);
+            AnalyseDesignerFramework.setState('searchSelectedIndex', searchSelectedIndex);
+            this.updateSearchSelection();
+          } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (items[searchSelectedIndex]) items[searchSelectedIndex].click();
+          } else if (e.key === 'Escape') {
+            this.refs.modal.classList.remove('active');
+          }
+        });
+      },
+      
+      performSearch(query) {
+        const schema = AnalyseDesignerFramework.getState('schema');
+        query = query.toLowerCase().trim();
+        let html = '';
+        
+        const tableMatches = schema.tables.filter(t => t.name.toLowerCase().includes(query));
+        
+        if (tableMatches.length > 0 || query === '') {
+          html += '<div class="search-category">Tabellen</div>';
+          (query === '' ? schema.tables : tableMatches).forEach(table => {
+            html += `
+              <div class="search-item" data-action="expand-table" data-table="${table.name}">
+                <div class="search-item-icon">${table.icon}</div>
+                <div class="search-item-content">
+                  <div class="search-item-title">${table.name}</div>
+                  <div class="search-item-meta">${table.fields.length} Felder • ${table.relationships.length} Beziehungen</div>
+                </div>
+              </div>
+            `;
+          });
+        }
+        
+        if (query !== '') {
+          const fieldMatches = [];
+          schema.tables.forEach(table => {
+            table.fields.forEach(field => {
+              if (field.name.toLowerCase().includes(query)) {
+                fieldMatches.push({ table, field });
+              }
+            });
+          });
+          
+          if (fieldMatches.length > 0) {
+            html += '<div class="search-category">Felder</div>';
+            fieldMatches.forEach(({ table, field }) => {
+              html += `
+                <div class="search-item" data-action="select-field" data-table="${table.name}" data-field="${field.name}">
+                  <div class="search-item-icon">${table.icon}</div>
+                  <div class="search-item-content">
+                    <div class="search-item-title">${field.name} ${field.key ? '🔑' : ''}<span class="search-badge">${field.type}</span></div>
+                    <div class="search-item-meta">${table.name}</div>
+                  </div>
+                </div>
+              `;
+            });
+          }
+        }
+        
+        this.refs.searchResults.innerHTML = html || '<div style="padding: 2rem; text-align: center; color: var(--text-muted);">Keine Ergebnisse gefunden</div>';
+        this.refs.searchResults.querySelectorAll('.search-item').forEach(item => {
+          item.addEventListener('click', () => this.handleSearchSelect(item));
+        });
+        this.updateSearchSelection();
+      },
+      
+      updateSearchSelection() {
+        const items = this.refs.searchResults.querySelectorAll('.search-item');
+        const searchSelectedIndex = AnalyseDesignerFramework.getState('searchSelectedIndex') || 0;
+        
+        items.forEach((item, index) => {
+          if (index === searchSelectedIndex) {
+            item.classList.add('selected');
+            item.scrollIntoView({ block: 'nearest' });
+          } else {
+            item.classList.remove('selected');
+          }
+        });
+      },
+      
+      handleSearchSelect(item) {
+        const action = item.dataset.action;
+        const tableName = item.dataset.table;
+        
+        this.refs.modal.classList.remove('active');
+        this.refs.searchInput.value = '';
+        
+        if (action === 'expand-table') {
+          setTimeout(() => {
+            const tableItem = document.querySelector(`[data-table-name="${tableName}"]`);
+            if (tableItem) {
+              tableItem.classList.add('expanded', 'active');
+              const arrow = tableItem.querySelector('.table-expand-icon');
+              if (arrow) arrow.style.transform = 'rotate(90deg)';
+              tableItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 100);
+        } else if (action === 'select-field') {
+          const fieldName = item.dataset.field;
+          setTimeout(() => {
+            const tableItem = document.querySelector(`[data-table-name="${tableName}"]`);
+            if (tableItem) {
+              tableItem.classList.add('expanded', 'active');
+              const arrow = tableItem.querySelector('.table-expand-icon');
+              if (arrow) arrow.style.transform = 'rotate(90deg)';
+              const checkbox = document.querySelector(`#field_${tableName}_${fieldName}`);
+              if (checkbox && !checkbox.checked) {
+                checkbox.checked = true;
+                checkbox.dispatchEvent(new Event('change'));
+              }
+              tableItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+          }, 100);
+        }
+      }
+    });
+
+    // ============================================================================
+    // CONTEXT MENU COMPONENT
+    // ============================================================================
+    
+    AnalyseDesignerFramework.registerComponent('ContextMenu', {
+      template: `
+        <div class="context-menu" data-ref="menu">
+          <div class="context-menu-item" data-action="sum">
+            <input type="checkbox" id="ctx-sum">
+            <label for="ctx-sum">Summe anzeigen</label>
+          </div>
+          <div class="context-menu-item" data-action="avg">
+            <input type="checkbox" id="ctx-avg">
+            <label for="ctx-avg">Durchschnitt anzeigen</label>
+          </div>
+          <div class="context-menu-item" data-action="min">
+            <input type="checkbox" id="ctx-min">
+            <label for="ctx-min">Minimum anzeigen</label>
+          </div>
+          <div class="context-menu-item" data-action="max">
+            <input type="checkbox" id="ctx-max">
+            <label for="ctx-max">Maximum anzeigen</label>
+          </div>
+          <div class="context-menu-item" data-action="count">
+            <input type="checkbox" id="ctx-count">
+            <label for="ctx-count">Anzahl anzeigen</label>
+          </div>
+        </div>
+      `,
+      
+      mounted() {
+        document.addEventListener('click', (e) => {
+          if (!this.refs.menu.contains(e.target)) {
+            this.refs.menu.classList.remove('active');
+          }
+        });
+        
+        this.refs.menu.querySelectorAll('.context-menu-item').forEach(item => {
+          item.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const action = item.dataset.action;
+            const checkbox = item.querySelector('input[type="checkbox"]');
+            
+            const currentContextColumn = AnalyseDesignerFramework.getState('currentContextColumn');
+            if (!currentContextColumn) return;
+            
+            const columnAggregations = AnalyseDesignerFramework.getState('columnAggregations');
+            
+            if (!columnAggregations[currentContextColumn.fullName]) {
+              columnAggregations[currentContextColumn.fullName] = {};
+            }
+            
+            columnAggregations[currentContextColumn.fullName][action] = checkbox.checked;
+            AnalyseDesignerFramework.setState('columnAggregations', columnAggregations);
+          });
+        });
+      }
+    });
+
+    // ============================================================================
+    // PRESET SAVE MODAL COMPONENT
+    // ============================================================================
+    
+    AnalyseDesignerFramework.registerComponent('PresetSaveModal', {
+      template: `
+        <div class="search-modal" data-ref="modal">
+          <div class="search-dialog" style="max-width: 500px;">
+            <div class="search-input-wrapper" style="flex-direction: column; align-items: stretch; gap: 1rem;">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <h3 style="margin: 0; font-size: 1.125rem; font-weight: 700;">💾 Preset speichern</h3>
+                <button data-ref="closeBtn" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted);">×</button>
+              </div>
+              <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; font-size: 0.875rem; color: var(--text);">Preset-Name</label>
+                <input type="text" data-ref="nameInput" placeholder="z.B. Umsatz nach Region Q4 2025" style="width: 100%; padding: 0.75rem; border: 1.5px solid var(--border); border-radius: 8px; font-size: 0.9375rem;">
+              </div>
+              <div>
+                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600; font-size: 0.875rem; color: var(--text);">Beschreibung (optional)</label>
+                <textarea data-ref="descInput" placeholder="Beschreibe, wofür diese Analyse verwendet wird..." style="width: 100%; padding: 0.75rem; border: 1.5px solid var(--border); border-radius: 8px; font-size: 0.9375rem; min-height: 80px; resize: vertical;"></textarea>
+              </div>
+            </div>
+            <div class="search-footer" style="justify-content: flex-end; gap: 0.75rem;">
+              <button class="btn btn-secondary" data-ref="cancelBtn">Abbrechen</button>
+              <button class="btn btn-primary" data-ref="saveBtn">Speichern</button>
+            </div>
+          </div>
+        </div>
+      `,
+      
+      mounted() {
+        this.refs.closeBtn.addEventListener('click', () => {
+          this.refs.modal.classList.remove('active');
+        });
+        
+        this.refs.cancelBtn.addEventListener('click', () => {
+          this.refs.modal.classList.remove('active');
+        });
+        
+        this.refs.saveBtn.addEventListener('click', () => {
+          this.savePreset();
+        });
+        
+        this.refs.nameInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') this.savePreset();
+        });
+      },
+      
+      savePreset() {
+        const name = this.refs.nameInput.value.trim();
+        const description = this.refs.descInput.value.trim();
+        
+        if (!name) {
+          AnalyseDesignerFramework.showNotification('❌ Bitte gib einen Namen ein', 'error');
+          this.refs.nameInput.focus();
+          return;
+        }
+        
+        try {
+          const preset = {
+            id: Date.now(),
+            name: name,
+            description: description,
+            created: new Date().toISOString(),
+            config: {
+              tables: [...new Set(AnalyseDesignerFramework.getState('selectedFields').map(f => f.table))],
+              fields: AnalyseDesignerFramework.getState('selectedFields'),
+              filters: AnalyseDesignerFramework.getState('filters'),
+              metrics: AnalyseDesignerFramework.getState('metrics'),
+              joins: AnalyseDesignerFramework.getState('tableJoins'),
+              joinFieldByTable: AnalyseDesignerFramework.getState('joinFieldByTable'),
+              chartConfig: { 
+                type: AnalyseDesignerFramework.getState('chartType'), 
+                xAxis: AnalyseDesignerFramework.getState('xAxis'), 
+                yAxis: AnalyseDesignerFramework.getState('yAxis') 
+              },
+              columnAggregations: AnalyseDesignerFramework.getState('columnAggregations')
+            }
+          };
+          
+          const presets = JSON.parse(localStorage.getItem('analysisPresets') || '[]');
+          presets.push(preset);
+          localStorage.setItem('analysisPresets', JSON.stringify(presets));
+          
+          this.refs.modal.classList.remove('active');
+          this.refs.nameInput.value = '';
+          this.refs.descInput.value = '';
+          
+          AnalyseDesignerFramework.showNotification(`✅ Preset "${name}" gespeichert!`, 'success');
+          
+        } catch (error) {
+          console.error('Save failed:', error);
+          AnalyseDesignerFramework.showNotification('❌ Fehler beim Speichern: ' + error.message, 'error');
+        }
+      }
+    });
+
+    // ============================================================================
+    // PRESET LOAD MODAL COMPONENT
+    // ============================================================================
+    
+    AnalyseDesignerFramework.registerComponent('PresetLoadModal', {
+      template: `
+        <div class="search-modal" data-ref="modal">
+          <div class="search-dialog" style="max-width: 600px;">
+            <div class="search-input-wrapper" style="border-bottom: 1px solid var(--border);">
+              <h3 style="margin: 0; font-size: 1.125rem; font-weight: 700;">📂 Preset laden</h3>
+              <button data-ref="closeBtn" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted);">×</button>
+            </div>
+            <div class="search-results" data-ref="presetList" style="max-height: 400px;"></div>
+            <div class="search-footer">
+              <span style="color: var(--text-muted); font-size: 0.8125rem;">Tipp: Verwende ↑ ↓ zum Navigieren, Enter zum Laden</span>
+            </div>
+          </div>
+        </div>
+      `,
+      
+      mounted() {
+        this.refs.closeBtn.addEventListener('click', () => {
+          this.refs.modal.classList.remove('active');
+        });
+        
+        // Render presets when modal opens
+        const observer = new MutationObserver(() => {
+          if (this.refs.modal.classList.contains('active')) {
+            this.renderPresets();
+          }
+        });
+        observer.observe(this.refs.modal, { attributes: true, attributeFilter: ['class'] });
+      },
+      
+      renderPresets() {
+        const presets = JSON.parse(localStorage.getItem('analysisPresets') || '[]');
+        
+        if (presets.length === 0) {
+          this.refs.presetList.innerHTML = `
+            <div class="preset-empty">
+              <div class="preset-empty-icon">📦</div>
+              <p style="margin: 0; font-size: 0.9375rem;">Keine gespeicherten Presets gefunden</p>
+              <p style="margin-top: 0.5rem; font-size: 0.8125rem;">Erstelle dein erstes Preset mit "💾 Preset speichern"</p>
+            </div>
+          `;
+          return;
+        }
+        
+        const sortedPresets = [...presets].sort((a, b) => new Date(b.created) - new Date(a.created));
+        
+        this.refs.presetList.innerHTML = sortedPresets.map((preset) => `
+          <div class="preset-item" data-preset-id="${preset.id}">
+            <div class="preset-item-header">
+              <div style="flex: 1;">
+                <div class="preset-item-title">${preset.name}</div>
+                <div class="preset-item-meta">
+                  Erstellt: ${new Date(preset.created).toLocaleDateString('de-CH', { 
+                    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' 
+                  })}
+                  ${preset.description ? ` • ${preset.description}` : ''}
+                </div>
+                <div class="preset-item-meta" style="margin-top: 0.25rem;">
+                  ${preset.config.fields.length} Felder • ${preset.config.filters.length} Filter • ${preset.config.metrics.length} Metriken
+                </div>
+              </div>
+              <div class="preset-item-actions">
+                <button class="preset-action-btn delete" data-preset-id="${preset.id}" title="Löschen">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        `).join('');
+        
+        // Bind click handlers
+        this.refs.presetList.querySelectorAll('.preset-item').forEach(item => {
+          item.addEventListener('click', (e) => {
+            if (e.target.closest('.preset-action-btn')) return;
+            const presetId = parseInt(item.dataset.presetId);
+            const preset = presets.find(p => p.id === presetId);
+            if (preset) {
+              this.loadPreset(preset);
+              this.refs.modal.classList.remove('active');
+            }
+          });
+        });
+        
+        // Bind delete handlers
+        this.refs.presetList.querySelectorAll('.preset-action-btn.delete').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const presetId = parseInt(btn.dataset.presetId);
+            this.deletePreset(presetId);
+          });
+        });
+      },
+      
+      loadPreset(preset) {
+        console.log('📂 Loading preset:', preset);
+        
+        try {
+          const config = preset.config;
+          
+          AnalyseDesignerFramework.updateState({
+            selectedFields: [],
+            filters: [],
+            metrics: [],
+            xAxis: null,
+            yAxis: null,
+            joinFieldByTable: {},
+            columnAggregations: {},
+            tableJoins: []
+          });
+          
+          config.fields.forEach(field => {
+            AnalyseDesignerFramework.getState('selectedFields').push({ ...field });
+          });
+          
+          AnalyseDesignerFramework.updateState({
+            filters: config.filters ? [...config.filters] : [],
+            metrics: config.metrics ? [...config.metrics] : [],
+            tableJoins: config.joins ? [...config.joins] : [],
+            joinFieldByTable: config.joinFieldByTable ? { ...config.joinFieldByTable } : {}
+          });
+          
+          if (config.chartConfig) {
+            AnalyseDesignerFramework.updateState({
+              chartType: config.chartConfig.type || 'bar',
+              xAxis: config.chartConfig.xAxis,
+              yAxis: config.chartConfig.yAxis
+            });
+          }
+          
+          AnalyseDesignerFramework.setState('columnAggregations', config.columnAggregations ? { ...config.columnAggregations } : {});
+          
+          setTimeout(() => {
+            document.querySelectorAll('.table-item').forEach(item => {
+              const tableName = item.dataset.tableName;
+              const hasFields = AnalyseDesignerFramework.getState('selectedFields').some(f => f.table === tableName);
+              
+              if (hasFields) {
+                item.classList.add('active', 'expanded');
+                const arrow = item.querySelector('.table-expand-icon');
+                if (arrow) arrow.style.transform = 'rotate(90deg)';
+              } else {
+                item.classList.remove('active', 'expanded');
+                const arrow = item.querySelector('.table-expand-icon');
+                if (arrow) arrow.style.transform = 'rotate(0deg)';
+              }
+            });
+            
+            document.querySelectorAll('input[type="checkbox"][data-table]').forEach(cb => {
+              const table = cb.getAttribute('data-table');
+              const field = cb.getAttribute('data-field');
+              cb.checked = AnalyseDesignerFramework.getState('selectedFields').some(f => f.table === table && f.field === field);
+            });
+            
+            const joinFieldByTable = AnalyseDesignerFramework.getState('joinFieldByTable');
+            Object.keys(joinFieldByTable).forEach(table => {
+              const field = joinFieldByTable[table];
+              const btn = document.querySelector(`.link-toggle[data-table="${table}"][data-field="${field}"]`);
+              if (btn) btn.classList.add('active');
+            });
+          }, 100);
+          
+          AnalyseDesignerFramework.setState('selectedFields', AnalyseDesignerFramework.getState('selectedFields'));
+          
+          AnalyseDesignerFramework.showNotification(`✅ Preset "${preset.name}" geladen!`, 'info');
+          
+        } catch (error) {
+          console.error('Load preset failed:', error);
+          AnalyseDesignerFramework.showNotification('❌ Fehler beim Laden des Presets: ' + error.message, 'error');
+        }
+      },
+      
+      deletePreset(presetId) {
+        if (!confirm('Möchtest du dieses Preset wirklich löschen?')) return;
+        
+        try {
+          let presets = JSON.parse(localStorage.getItem('analysisPresets') || '[]');
+          presets = presets.filter(p => p.id !== presetId);
+          localStorage.setItem('analysisPresets', JSON.stringify(presets));
+          
+          AnalyseDesignerFramework.showNotification('✅ Preset gelöscht', 'success');
+          this.renderPresets();
+          
+        } catch (error) {
+          console.error('Delete failed:', error);
+          AnalyseDesignerFramework.showNotification('❌ Fehler beim Löschen', 'error');
+        }
+      }
+    });
+
+    // Demo Data - Erweitert mit realistischen Werten
+    const mockData = {
+      Account: [
+        { Account_ID: 1, Name: 'Acme Corp', Region: 'ZH', Industry: 'Technology', Annual_Revenue: 5200000 },
+        { Account_ID: 2, Name: 'Helvetia AG', Region: 'BE', Industry: 'Insurance', Annual_Revenue: 8500000 },
+        { Account_ID: 3, Name: 'UBS Group', Region: 'ZH', Industry: 'Banking', Annual_Revenue: 15000000 },
+        { Account_ID: 4, Name: 'Nestlé SA', Region: 'VD', Industry: 'Food & Beverage', Annual_Revenue: 22000000 },
+        { Account_ID: 5, Name: 'Migros', Region: 'ZH', Industry: 'Retail', Annual_Revenue: 12500000 },
+        { Account_ID: 6, Name: 'Swisscom', Region: 'BE', Industry: 'Telecommunications', Annual_Revenue: 9800000 },
+        { Account_ID: 7, Name: 'Roche', Region: 'BS', Industry: 'Pharmaceuticals', Annual_Revenue: 28000000 },
+        { Account_ID: 8, Name: 'Novartis', Region: 'BS', Industry: 'Pharmaceuticals', Annual_Revenue: 25500000 },
+        { Account_ID: 9, Name: 'ABB Ltd', Region: 'ZH', Industry: 'Technology', Annual_Revenue: 18000000 },
+        { Account_ID: 10, Name: 'Zurich Insurance', Region: 'ZH', Industry: 'Insurance', Annual_Revenue: 19500000 },
+        { Account_ID: 11, Name: 'Credit Suisse', Region: 'ZH', Industry: 'Banking', Annual_Revenue: 14200000 },
+        { Account_ID: 12, Name: 'Swatch Group', Region: 'BE', Industry: 'Manufacturing', Annual_Revenue: 7800000 },
+        { Account_ID: 13, Name: 'Richemont', Region: 'GE', Industry: 'Luxury Goods', Annual_Revenue: 11200000 },
+        { Account_ID: 14, Name: 'Geberit', Region: 'SG', Industry: 'Manufacturing', Annual_Revenue: 3500000 },
+        { Account_ID: 15, Name: 'LafargeHolcim', Region: 'ZH', Industry: 'Construction', Annual_Revenue: 16800000 },
+        { Account_ID: 16, Name: 'SGS SA', Region: 'GE', Industry: 'Services', Annual_Revenue: 6200000 },
+        { Account_ID: 17, Name: 'Schindler', Region: 'LU', Industry: 'Manufacturing', Annual_Revenue: 8900000 },
+        { Account_ID: 18, Name: 'Barry Callebaut', Region: 'ZH', Industry: 'Food & Beverage', Annual_Revenue: 4800000 },
+        { Account_ID: 19, Name: 'Adecco Group', Region: 'ZH', Industry: 'Services', Annual_Revenue: 5600000 },
+        { Account_ID: 20, Name: 'Lindt & Sprüngli', Region: 'ZH', Industry: 'Food & Beverage', Annual_Revenue: 4200000 }
+      ],
+      Contact: [
+        { Contact_ID: 1, Account_ID: 1, Name: 'Hans Müller', Email: 'hans.mueller@acme.ch', Phone: '+41 44 123 45 67', Title: 'CEO' },
+        { Contact_ID: 2, Account_ID: 1, Name: 'Anna Schmidt', Email: 'anna.schmidt@acme.ch', Phone: '+41 44 123 45 68', Title: 'CTO' },
+        { Contact_ID: 3, Account_ID: 1, Name: 'Michael Weber', Email: 'michael.weber@acme.ch', Phone: '+41 44 123 45 69', Title: 'CFO' },
+        { Contact_ID: 4, Account_ID: 2, Name: 'Peter Fischer', Email: 'peter.fischer@helvetia.ch', Phone: '+41 31 456 78 90', Title: 'Director' },
+        { Contact_ID: 5, Account_ID: 2, Name: 'Sandra Meier', Email: 'sandra.meier@helvetia.ch', Phone: '+41 31 456 78 91', Title: 'VP Operations' },
+        { Contact_ID: 6, Account_ID: 3, Name: 'Maria Schneider', Email: 'maria.schneider@ubs.ch', Phone: '+41 44 234 56 78', Title: 'VP Sales' },
+        { Contact_ID: 7, Account_ID: 3, Name: 'Thomas Keller', Email: 'thomas.keller@ubs.ch', Phone: '+41 44 234 56 79', Title: 'Head of IT' },
+        { Contact_ID: 8, Account_ID: 4, Name: 'Julia Becker', Email: 'julia.becker@nestle.ch', Phone: '+41 21 924 21 11', Title: 'Procurement Manager' },
+        { Contact_ID: 9, Account_ID: 4, Name: 'Stefan Graf', Email: 'stefan.graf@nestle.ch', Phone: '+41 21 924 21 12', Title: 'IT Director' },
+        { Contact_ID: 10, Account_ID: 5, Name: 'Laura Zimmermann', Email: 'laura.zimmermann@migros.ch', Phone: '+41 44 277 21 11', Title: 'Head of Digital' },
+        { Contact_ID: 11, Account_ID: 5, Name: 'Andreas Huber', Email: 'andreas.huber@migros.ch', Phone: '+41 44 277 21 12', Title: 'VP Technology' },
+        { Contact_ID: 12, Account_ID: 6, Name: 'Nicole Schmid', Email: 'nicole.schmid@swisscom.ch', Phone: '+41 31 342 11 11', Title: 'CIO' },
+        { Contact_ID: 13, Account_ID: 7, Name: 'Daniel Hofmann', Email: 'daniel.hofmann@roche.ch', Phone: '+41 61 688 11 11', Title: 'IT Manager' },
+        { Contact_ID: 14, Account_ID: 8, Name: 'Sarah Wyss', Email: 'sarah.wyss@novartis.ch', Phone: '+41 61 324 11 11', Title: 'Director Digital' },
+        { Contact_ID: 15, Account_ID: 9, Name: 'Martin Berger', Email: 'martin.berger@abb.ch', Phone: '+41 43 317 71 11', Title: 'VP Sales' },
+        { Contact_ID: 16, Account_ID: 10, Name: 'Christina Lang', Email: 'christina.lang@zurich.ch', Phone: '+41 44 625 25 25', Title: 'Head of IT' },
+        { Contact_ID: 17, Account_ID: 11, Name: 'Patrick Steiner', Email: 'patrick.steiner@credit-suisse.ch', Phone: '+41 44 333 11 11', Title: 'Technology Lead' },
+        { Contact_ID: 18, Account_ID: 12, Name: 'Sabrina Koch', Email: 'sabrina.koch@swatchgroup.ch', Phone: '+41 32 343 68 11', Title: 'IT Director' },
+        { Contact_ID: 19, Account_ID: 13, Name: 'Alexander Vogel', Email: 'alexander.vogel@richemont.ch', Phone: '+41 22 721 35 00', Title: 'CTO' },
+        { Contact_ID: 20, Account_ID: 14, Name: 'Miriam Frei', Email: 'miriam.frei@geberit.ch', Phone: '+41 55 221 61 11', Title: 'VP Operations' },
+        { Contact_ID: 21, Account_ID: 15, Name: 'Roger Brunner', Email: 'roger.brunner@lafargeholcim.ch', Phone: '+41 58 858 86 86', Title: 'IT Manager' },
+        { Contact_ID: 22, Account_ID: 16, Name: 'Daniela Sutter', Email: 'daniela.sutter@sgs.ch', Phone: '+41 22 739 91 11', Title: 'Head of Technology' },
+        { Contact_ID: 23, Account_ID: 17, Name: 'Matthias Ziegler', Email: 'matthias.ziegler@schindler.ch', Phone: '+41 41 445 32 32', Title: 'CIO' },
+        { Contact_ID: 24, Account_ID: 18, Name: 'Verena Schärer', Email: 'verena.schaerer@barry-callebaut.ch', Phone: '+41 43 204 04 04', Title: 'IT Director' },
+        { Contact_ID: 25, Account_ID: 19, Name: 'Lukas Roth', Email: 'lukas.roth@adecco.ch', Phone: '+41 44 878 88 88', Title: 'Technology Manager' },
+        { Contact_ID: 26, Account_ID: 20, Name: 'Simone Moser', Email: 'simone.moser@lindt.ch', Phone: '+41 44 716 22 33', Title: 'VP Digital' }
+      ],
+      Opportunity: [
+        // Q4 2024
+        { Opportunity_ID: 1, Account_ID: 1, Name: 'Cloud Migration Project', Stage: 'Closed Won', Amount: 450000, Probability: 100, CloseDate: '2024-10-15' },
+        { Opportunity_ID: 2, Account_ID: 2, Name: 'Data Warehouse Modernization', Stage: 'Closed Won', Amount: 380000, Probability: 100, CloseDate: '2024-11-22' },
+        { Opportunity_ID: 3, Account_ID: 3, Name: 'Security Infrastructure Upgrade', Stage: 'Closed Won', Amount: 620000, Probability: 100, CloseDate: '2024-12-10' },
+        
+        // Q1 2025
+        { Opportunity_ID: 4, Account_ID: 4, Name: 'ERP System Implementation', Stage: 'Closed Won', Amount: 850000, Probability: 100, CloseDate: '2025-01-28' },
+        { Opportunity_ID: 5, Account_ID: 5, Name: 'E-Commerce Platform', Stage: 'Closed Won', Amount: 520000, Probability: 100, CloseDate: '2025-02-14' },
+        { Opportunity_ID: 6, Account_ID: 6, Name: 'Network Infrastructure', Stage: 'Closed Won', Amount: 420000, Probability: 100, CloseDate: '2025-03-08' },
+        { Opportunity_ID: 7, Account_ID: 7, Name: 'AI/ML Platform Setup', Stage: 'Closed Won', Amount: 720000, Probability: 100, CloseDate: '2025-03-25' },
+        
+        // Q2 2025
+        { Opportunity_ID: 8, Account_ID: 8, Name: 'Digital Transformation', Stage: 'Closed Won', Amount: 680000, Probability: 100, CloseDate: '2025-04-12' },
+        { Opportunity_ID: 9, Account_ID: 9, Name: 'IoT Integration', Stage: 'Closed Won', Amount: 540000, Probability: 100, CloseDate: '2025-05-18' },
+        { Opportunity_ID: 10, Account_ID: 10, Name: 'Customer Portal', Stage: 'Closed Won', Amount: 390000, Probability: 100, CloseDate: '2025-06-22' },
+        
+        // Q3 2025
+        { Opportunity_ID: 11, Account_ID: 11, Name: 'Banking Platform Upgrade', Stage: 'Closed Won', Amount: 920000, Probability: 100, CloseDate: '2025-07-15' },
+        { Opportunity_ID: 12, Account_ID: 12, Name: 'Supply Chain Optimization', Stage: 'Closed Won', Amount: 480000, Probability: 100, CloseDate: '2025-08-09' },
+        { Opportunity_ID: 13, Account_ID: 13, Name: 'Retail Management System', Stage: 'Closed Won', Amount: 560000, Probability: 100, CloseDate: '2025-09-14' },
+        
+        // Q4 2025 - Pipeline
+        { Opportunity_ID: 14, Account_ID: 1, Name: 'AI Chatbot Implementation', Stage: 'Qualified', Amount: 280000, Probability: 70, CloseDate: '2025-10-30' },
+        { Opportunity_ID: 15, Account_ID: 2, Name: 'Blockchain Integration', Stage: 'Qualified', Amount: 320000, Probability: 65, CloseDate: '2025-11-15' },
+        { Opportunity_ID: 16, Account_ID: 14, Name: 'Manufacturing Analytics', Stage: 'Qualified', Amount: 410000, Probability: 60, CloseDate: '2025-11-28' },
+        { Opportunity_ID: 17, Account_ID: 15, Name: 'Construction Management Software', Stage: 'Opportunity', Amount: 580000, Probability: 50, CloseDate: '2025-12-10' },
+        { Opportunity_ID: 18, Account_ID: 3, Name: 'Mobile Banking App', Stage: 'Opportunity', Amount: 720000, Probability: 55, CloseDate: '2025-12-18' },
+        { Opportunity_ID: 19, Account_ID: 16, Name: 'Quality Control System', Stage: 'Qualified', Amount: 380000, Probability: 68, CloseDate: '2025-10-22' },
+        { Opportunity_ID: 20, Account_ID: 17, Name: 'Elevator IoT Platform', Stage: 'Opportunity', Amount: 490000, Probability: 52, CloseDate: '2025-11-08' },
+        
+        // 2026 Pipeline
+        { Opportunity_ID: 21, Account_ID: 4, Name: 'Global Supply Chain Platform', Stage: 'Qualified', Amount: 1200000, Probability: 45, CloseDate: '2026-01-20' },
+        { Opportunity_ID: 22, Account_ID: 5, Name: 'Omnichannel Retail Solution', Stage: 'Opportunity', Amount: 680000, Probability: 48, CloseDate: '2026-02-15' },
+        { Opportunity_ID: 23, Account_ID: 18, Name: 'Production Optimization', Stage: 'Qualified', Amount: 520000, Probability: 62, CloseDate: '2026-01-28' },
+        { Opportunity_ID: 24, Account_ID: 19, Name: 'HR Management System', Stage: 'Lead', Amount: 340000, Probability: 30, CloseDate: '2026-03-10' },
+        { Opportunity_ID: 25, Account_ID: 20, Name: 'E-Commerce Enhancement', Stage: 'Qualified', Amount: 420000, Probability: 58, CloseDate: '2026-02-22' },
+        { Opportunity_ID: 26, Account_ID: 6, Name: '5G Network Expansion', Stage: 'Opportunity', Amount: 890000, Probability: 50, CloseDate: '2026-04-15' },
+        { Opportunity_ID: 27, Account_ID: 7, Name: 'Clinical Trial Management', Stage: 'Qualified', Amount: 750000, Probability: 64, CloseDate: '2026-03-18' },
+        { Opportunity_ID: 28, Account_ID: 8, Name: 'Drug Discovery Platform', Stage: 'Lead', Amount: 820000, Probability: 35, CloseDate: '2026-05-12' },
+        { Opportunity_ID: 29, Account_ID: 9, Name: 'Smart Factory Solution', Stage: 'Opportunity', Amount: 650000, Probability: 48, CloseDate: '2026-02-28' },
+        { Opportunity_ID: 30, Account_ID: 10, Name: 'Risk Management Platform', Stage: 'Qualified', Amount: 580000, Probability: 66, CloseDate: '2026-01-15' },
+        
+        // Additional Lead Stage
+        { Opportunity_ID: 31, Account_ID: 11, Name: 'Trading Platform Upgrade', Stage: 'Lead', Amount: 920000, Probability: 25, CloseDate: '2026-06-10' },
+        { Opportunity_ID: 32, Account_ID: 12, Name: 'Smart Watch Platform', Stage: 'Lead', Amount: 480000, Probability: 28, CloseDate: '2026-04-22' },
+        { Opportunity_ID: 33, Account_ID: 13, Name: 'Luxury Goods Traceability', Stage: 'Lead', Amount: 560000, Probability: 32, CloseDate: '2026-05-18' },
+        { Opportunity_ID: 34, Account_ID: 1, Name: 'DevOps Automation', Stage: 'Opportunity', Amount: 310000, Probability: 52, CloseDate: '2025-12-22' },
+        { Opportunity_ID: 35, Account_ID: 2, Name: 'Insurance Claims Portal', Stage: 'Qualified', Amount: 420000, Probability: 70, CloseDate: '2025-11-30' }
+      ]
+    };
+
+// ============================================================================
+    // DATA MODEL PANEL COMPONENT
+    // ============================================================================
+    
+    AnalyseDesignerFramework.registerComponent('DataModelPanel', {
+      template: `
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">📋 Datenmodell</div>
+              <div class="panel-subtitle">Tabellen & Beziehungen</div>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="relationship-flow">
+              <div class="flow-title"><i class="bi bi-share"></i><span> Aktive Beziehungen</span></div>
+              <div class="flow-chain" data-ref="flowChain"></div>
+            </div>
+            <div class="table-list" data-ref="tableList"></div>
+            <button class="add-table-btn" data-ref="addTableBtn">+ Weitere Tabelle hinzufügen</button>
+          </div>
+        </div>
+      `,
+      
+      afterRender() {
+        // Methoden sind jetzt auf der Komponenten-Definition, nicht auf der Instanz
+      },
+      
+      mounted() {
+        this.renderTableList();
+        this.renderRelationshipFlow();
+        
+        this.refs.addTableBtn.addEventListener('click', () => {
+          AnalyseDesignerFramework.showNotification('ℹ️ Alle verfügbaren Tabellen sind bereits angezeigt', 'info');
+        });
+        
+        AnalyseDesignerFramework.subscribe('stateChange:selectedFields', () => {
+          this.renderTableList();
+          this.renderRelationshipFlow();
+        });
+        
+        AnalyseDesignerFramework.subscribe('stateChange:joinFieldByTable', () => {
+          this.renderRelationshipFlow();
+        });
+        
+        AnalyseDesignerFramework.subscribe('stateChange:mainTable', () => {
+          this.renderTableList();
+          this.renderRelationshipFlow();
+        });
+      },
+      
+      renderTableList() {
+        const schema = AnalyseDesignerFramework.getState('schema');
+        const selectedFields = AnalyseDesignerFramework.getState('selectedFields');
+        const mainTable = AnalyseDesignerFramework.getState('mainTable');
+        const activeTables = [...new Set(selectedFields.map(f => f.table))];
+        
+        this.refs.tableList.innerHTML = '';
+        
+        schema.tables.forEach(table => {
+          const tableItem = AnalyseDesignerFramework.createElement(`
+            <div class="table-item" data-table-name="${table.name}">
+              <div class="table-header">
+                <div class="table-info">
+                  <div class="table-icon">${table.icon}</div>
+                  <span class="main-table-star" 
+                        data-table="${table.name}"
+                        title="Als Haupttabelle markieren"
+                        style="cursor: pointer; font-size: 1.2rem; margin-right: 0.5rem;">
+                    ${mainTable === table.name ? '⭐' : '☆'}
+                  </span>
+                  <div>
+                    <div class="table-name">${table.name}</div>
+                    <div class="table-count">${table.fields.length} Felder</div>
+                  </div>
+                </div>
+                <span class="table-expand-icon">›</span>
+              </div>
+              <div class="table-fields">
+                ${table.fields.map(field => `
+                  <div class="field-item ${field.foreign ? 'foreign-key' : ''}">
+                    <input type="checkbox" 
+                           data-table="${table.name}" 
+                           data-field="${field.name}"
+                           data-type="${field.type}"
+                           id="field_${table.name}_${field.name}"
+                           ${selectedFields.some(f => f.table === table.name && f.field === field.name) ? 'checked' : ''}>
+                    <label for="field_${table.name}_${field.name}" class="field-label">
+                      ${field.name} 
+                      ${field.key ? '<span class="field-key-icon">🔑</span>' : ''} 
+                      ${field.foreign ? '<span class="field-key-icon"><i class="bi bi-share"></i></span>' : ''}
+                    </label>
+                    <span class="field-type ${field.type}">${field.type}</span>
+                    ${table.name !== mainTable ? `
+                      <span class="link-toggle"
+                            title="Als Join-Feld verwenden"
+                            style="display: ${table.name === mainTable ? 'none' : 'inline-block'};"
+                            data-table="${table.name}"
+                            data-field="${field.name}">
+                        <i class="bi bi-share"></i>
+                      </span>
+                    ` : ''}
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `);
+          
+          this.refs.tableList.appendChild(tableItem);
+          
+          const header = tableItem.querySelector('.table-header');
+          header.addEventListener('click', () => {
+            tableItem.classList.toggle('expanded');
+            const arrow = tableItem.querySelector('.table-expand-icon');
+            arrow.style.transform = tableItem.classList.contains('expanded') ? 'rotate(90deg)' : 'rotate(0deg)';
+          });
+          // DnD: Header von der Vorschau zurück auf die Tabelle ziehen → Spalte entfernen
+          header.addEventListener('dragover', (e) => { e.preventDefault(); header.classList.add('drag-over'); });
+          header.addEventListener('dragleave', () => header.classList.remove('drag-over'));
+          header.addEventListener('drop', (e) => {
+            e.preventDefault();
+            header.classList.remove('drag-over');
+            const payload = e.dataTransfer.getData('application/json');
+            if (!payload || payload === 'undefined') return;
+            let field;
+            try { field = JSON.parse(payload); } catch { return; }
+            if (!field || !field.table || !field.field) return;
+            // nur Spalten dieser Tabelle entfernen
+            if (field.table === table.name) {
+              this.removeColumn(field);
+            }
+          });
+
+          
+          const star = tableItem.querySelector('.main-table-star');
+          star.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            
+            // SERVER CALL: Hole mögliche Relations für diese Tabelle
+            try {
+              if (location.protocol === 'file:') {
+                AnalyseDesignerFramework.showNotification('Fehler bei der Analyse: Datei-Modus (file://) – CORS blockiert Serveraufrufe. Öffne die Seite via http(s) oder nutze Demo-Daten.', 'error');
+                return;
+              }
+              const response = await fetch(API_ENDPOINTS.getTableRelations, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tableName: table.name })
+              });
+              
+              const relations = await response.json();
+              // relations = [ { toTable: 'Opportunity', joinKey: 'Account_ID', relationType: '1:n' }, ... ]
+              
+              AnalyseDesignerFramework.setState('mainTable', table.name);
+              AnalyseDesignerFramework.setState('availableRelations', relations);
+              
+              const selectedFields = AnalyseDesignerFramework.getState('selectedFields');
+              table.fields.filter(f => !f.foreign).forEach(field => {
+                if (!selectedFields.find(sf => sf.table === table.name && sf.field === field.name)) {
+                  selectedFields.push({ table: table.name, field: field.name, type: field.type });
+                }
+              });
+              AnalyseDesignerFramework.setState('selectedFields', selectedFields);
+              
+            } catch (error) {
+              console.error('Failed to fetch table relations:', error);
+              AnalyseDesignerFramework.showNotification('❌ Fehler beim Laden der Relationen', 'error');
+            }
+          });
+          
+          tableItem.querySelectorAll('.link-toggle').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+              e.stopPropagation();
+              const targetTable = btn.getAttribute('data-table');
+              const field = btn.getAttribute('data-field');
+              const mainTable = AnalyseDesignerFramework.getState('mainTable');
+              
+              // SERVER CALL: Hole Join-Definition
+              try {
+                if (location.protocol === 'file:') {
+                  AnalyseDesignerFramework.showNotification('Fehler bei der Analyse: Datei-Modus (file://) – CORS blockiert Serveraufrufe. Öffne die Seite via http(s) oder nutze Demo-Daten.', 'error');
+                  return;
+                }
+                const response = await fetch(API_ENDPOINTS.getJoinDefinition, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ 
+                    fromTable: mainTable,
+                    toTable: targetTable,
+                    suggestedField: field
+                  })
+                });
+                
+                const joinDef = await response.json();
+                // joinDef = { fromKey: 'Account_ID', toKey: 'Account_ID', valid: true }
+                
+                if (!joinDef.valid) {
+                  AnalyseDesignerFramework.showNotification('⚠️ Ungültiger Join-Schlüssel', 'warning');
+                  return;
+                }
+                
+                const joinFieldByTable = AnalyseDesignerFramework.getState('joinFieldByTable');
+                
+                tableItem.querySelectorAll('.link-toggle').forEach(x => {
+                  if (x.getAttribute('data-table') === targetTable) x.classList.remove('active');
+                });
+                
+                if (joinFieldByTable[targetTable] === field) {
+                  delete joinFieldByTable[targetTable];
+                } else {
+                  joinFieldByTable[targetTable] = field;
+                  btn.classList.add('active');
+                }
+                
+                AnalyseDesignerFramework.setState('joinFieldByTable', joinFieldByTable);
+                
+              } catch (error) {
+                console.error('Failed to validate join:', error);
+                AnalyseDesignerFramework.showNotification('❌ Fehler beim Validieren des Joins', 'error');
+              }
+            });
+          });
+          
+          tableItem.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            cb.addEventListener('change', (e) => {
+              const table = e.target.getAttribute('data-table');
+              const field = e.target.getAttribute('data-field');
+              const type = e.target.getAttribute('data-type');
+              const selectedFields = AnalyseDesignerFramework.getState('selectedFields');
+              
+              if (e.target.checked) {
+                if (!selectedFields.find(f => f.table === table && f.field === field)) {
+                  selectedFields.push({ table, field, type });
+                }
+                tableItem.classList.add('active');
+              } else {
+                const i = selectedFields.findIndex(f => f.table === table && f.field === field);
+                if (i > -1) selectedFields.splice(i, 1);
+                if (!selectedFields.some(f => f.table === table)) {
+                  tableItem.classList.remove('active');
+                }
+              }
+              
+              AnalyseDesignerFramework.setState('selectedFields', selectedFields);
+            });
+          });
+        });
+        
+        const firstTable = this.refs.tableList.querySelector('.table-item');
+        if (firstTable) {
+          firstTable.classList.add('expanded');
+          const arrow = firstTable.querySelector('.table-expand-icon');
+          if (arrow) arrow.style.transform = 'rotate(90deg)';
+        }
+      },
+      
+      renderRelationshipFlow() {
+        const selectedFields = AnalyseDesignerFramework.getState('selectedFields');
+        const schema = AnalyseDesignerFramework.getState('schema');
+        const joinFieldByTable = AnalyseDesignerFramework.getState('joinFieldByTable');
+        const mainTable = AnalyseDesignerFramework.getState('mainTable');
+        
+        let activeTables = [];
+        
+        if (mainTable) {
+          activeTables.push(mainTable);
+          Object.keys(joinFieldByTable).forEach(table => {
+            if (table !== mainTable && !activeTables.includes(table)) {
+              activeTables.push(table);
+            }
+          });
+        }
+        
+        if (activeTables.length === 0) {
+          activeTables = [...new Set(selectedFields.map(f => f.table))];
+        }
+        
+        if (mainTable && !activeTables.includes(mainTable)) {
+          activeTables.unshift(mainTable);
+        } else if (mainTable && activeTables.includes(mainTable)) {
+          activeTables = activeTables.filter(t => t !== mainTable);
+          activeTables.unshift(mainTable);
+        }
+        
+        if (activeTables.length === 0) {
+          this.refs.flowChain.innerHTML = `
+            <div style="text-align: center; padding: 2rem; color: var(--text-muted); font-size: 0.875rem;">
+              Wähle Felder aus mehreren Tabellen aus, um Beziehungen zu sehen
+            </div>
+          `;
+          return;
+        }
+        
+        if (activeTables.length === 1) {
+          const table = schema.tables.find(t => t.name === activeTables[0]);
+          this.refs.flowChain.innerHTML = `
+            <div class="flow-node active">
+              <div class="flow-node-icon">${table.icon}</div>
+              <div class="flow-node-info">
+                <div class="flow-node-name">${table.name}</div>
+                <div class="flow-node-rel">Einzeltabelle (kein Join notwendig)</div>
+              </div>
+            </div>
+          `;
+          return;
+        }
+        
+        const tableJoins = [];
+        let html = '';
+        
+        activeTables.forEach((tableName, index) => {
+          const table = schema.tables.find(t => t.name === tableName);
+          const rel = table.relationships.find(r => activeTables.includes(r.toTable));
+          
+          if (index > 0 && rel) {
+            const prevTable = activeTables[index - 1];
+            tableJoins.push({
+              fromTable: prevTable,
+              toTable: tableName,
+              via: joinFieldByTable[tableName] || rel.via
+            });
+          }
+          
+          html += `
+            <div class="flow-node active">
+              <div class="flow-node-icon">${table.icon}</div>
+              <div class="flow-node-info">
+                <div class="flow-node-name">${table.name}</div>
+                <div class="flow-node-rel">${index === 0 ? 'Basis-Tabelle' : rel ? rel.description : ''}</div>
+                ${index > 0 && rel ? `
+                  <div class="flow-node-join">
+                    <span>Join über:</span>
+                    <select data-join-index="${index - 1}">
+                      ${table.fields.filter(f => f.type === 'number').map(f => `
+                        <option value="${f.name}" ${f.name === rel.via ? 'selected' : ''}>${f.name}</option>
+                      `).join('')}
+                    </select>
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+          `;
+          
+          if (index < activeTables.length - 1) html += '<div class="flow-connector"></div>';
+        });
+        
+        this.refs.flowChain.innerHTML = html;
+        AnalyseDesignerFramework.setState('tableJoins', tableJoins);
+        
+        this.refs.flowChain.querySelectorAll('select[data-join-index]').forEach(select => {
+          select.addEventListener('change', (e) => {
+            const joinIndex = parseInt(e.target.dataset.joinIndex);
+            const tableJoins = AnalyseDesignerFramework.getState('tableJoins');
+            if (tableJoins[joinIndex]) {
+              tableJoins[joinIndex].via = e.target.value;
+              AnalyseDesignerFramework.setState('tableJoins', tableJoins);
+            }
+          });
+        });
+
+        // Toggle „Erweitert“ (Select ein-/ausblenden)
+        this.refs.flowChain.querySelectorAll('.toggle-join-adv').forEach(link => {
+          link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const idx = link.dataset.index;
+            const box = this.refs.flowChain.querySelector(`.join-adv[data-join-adv="${idx}"]`);
+            if (!box) return;
+            const open = (box.style.display === 'none' || !box.style.display);
+            box.style.display = open ? '' : 'none';
+            link.textContent = open ? 'Erweitert ▴' : 'Erweitert ▾';
+          });
+        });
+
+        // Auto-Join über Endpoint
+        this.refs.flowChain.querySelectorAll('.auto-join-btn').forEach(btn => {
+          btn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            try {
+              if (location.protocol === 'file:') {
+                AnalyseDesignerFramework.showNotification('Fehler bei der Analyse: Datei-Modus (file://) – CORS blockiert Serveraufrufe. Öffne die Seite via http(s) oder nutze Demo-Daten.', 'error');
+                return;
+              }
+              const idx = parseInt(btn.dataset.index);
+              const fromTable = btn.dataset.from;
+              const toTable = btn.dataset.to;
+              const res = await fetch(API_ENDPOINTS.getJoinDefinition, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fromTable, toTable })
+              });
+              const data = await res.json();
+              const tableJoins = AnalyseDesignerFramework.getState('tableJoins');
+              if (data?.via && tableJoins[idx]) {
+                tableJoins[idx].via = data.via;
+                AnalyseDesignerFramework.setState('tableJoins', tableJoins);
+                const sel = this.refs.flowChain.querySelector(`select[data-join-index="${idx}"]`);
+                if (sel) sel.value = data.via;
+                AnalyseDesignerFramework.showNotification('🔗 Beziehung automatisch ermittelt: ' + data.via, 'success');
+              } else {
+                AnalyseDesignerFramework.showNotification('ℹ️ Keine passende Beziehung gefunden.', 'info');
+              }
+            } catch (err) {
+              AnalyseDesignerFramework.showNotification('❌ Auto-Join fehlgeschlagen: ' + (err?.message || err), 'error');
+            }
+          });
+        });
+      }
+    });
+
+
+// ============================================================================
+    // PREVIEW PANEL COMPONENT
+    // ============================================================================
+    
+    AnalyseDesignerFramework.registerComponent('PreviewPanel', {
+      template: `
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">📊 Datenvorschau</div>
+              <div class="panel-subtitle">Rechtsklick auf Spalte für Metriken</div>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div data-ref="dataTableWrapper">
+              <div class="empty-state">
+                <div class="empty-state-icon">📦</div>
+                <p>Wähle Felder aus dem Datenmodell aus, um die Vorschau zu sehen</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      `,
+      
+      mounted() {
+        this.updatePreview();
+        
+        AnalyseDesignerFramework.subscribe('stateChange:selectedFields', () => this.updatePreview());
+        AnalyseDesignerFramework.subscribe('stateChange:tableJoins', () => this.updatePreview());
+        AnalyseDesignerFramework.subscribe('stateChange:columnAggregations', () => this.updatePreview());
+        // Filter-Panel bei jeder Änderung neu aufbauen (Dropdowns/Inputs sind dann nie leer)
+        AnalyseDesignerFramework.subscribe('stateChange:filters', () => { try { this.renderFilters?.(); } catch(e) {} });
+
+      },
+      
+      updatePreview() {
+        const selectedFields = AnalyseDesignerFramework.getState('selectedFields');
+        const mockData = AnalyseDesignerFramework.getState('mockData');
+        const tableJoins = AnalyseDesignerFramework.getState('tableJoins');
+        const columnAggregations = AnalyseDesignerFramework.getState('columnAggregations');
+        
+        if (selectedFields.length === 0) {
+          this.refs.dataTableWrapper.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state-icon">📦</div>
+              <p>Wähle Felder aus dem Datenmodell aus, um die Vorschau zu sehen</p>
+            </div>
+          `;
+          return;
+        }
+        
+        const tables = [...new Set(selectedFields.map(f => f.table))];
+        let dataset = [];
+        
+        if (tables.length === 1) {
+          dataset = mockData[tables[0]].map(row => {
+            const newRow = {};
+            selectedFields.forEach(f => {
+              newRow[`${f.table}.${f.field}`] = row[f.field];
+            });
+            return newRow;
+          });
+        } else {
+          const baseTable = tables.includes('Account') ? 'Account' : tables[0];
+          dataset = mockData[baseTable].map(baseRow => {
+            const row = {};
+            selectedFields.filter(f => f.table === baseTable).forEach(f => {
+              row[`${f.table}.${f.field}`] = baseRow[f.field];
+            });
+            tables.filter(t => t !== baseTable).forEach(table => {
+              const joinKey = tableJoins.find(j => j.toTable === table)?.via || 'Account_ID';
+              const relatedRows = mockData[table].filter(r => r[joinKey] === baseRow[joinKey]);
+              if (relatedRows.length > 0) {
+                const relatedRow = relatedRows[0];
+                selectedFields.filter(f => f.table === table).forEach(f => {
+                  row[`${f.table}.${f.field}`] = relatedRow[f.field];
+                });
+              }
+            });
+            return row;
+          });
+        }
+        
+        const columns = selectedFields.map(f => {
+          const full = `${f.table}.${f.field}`;
+          return {
+            title: full,
+            data: null,
+            render: (data, type, row) => {
+              const value = row ? row[full] : data;
+              if (type === 'display' && value !== null && value !== undefined) {
+                if (f.type === 'number') return new Intl.NumberFormat('de-CH').format(value);
+                if (f.type === 'date') return new Date(value).toLocaleDateString('de-CH');
+              }
+              return value ?? '';
+            }
+          };
+        });
+        
+        const dataTable = AnalyseDesignerFramework.getState('dataTable');
+        if (dataTable) dataTable.destroy();
+        
+        this.refs.dataTableWrapper.innerHTML = '<table id="dataTable" class="display" style="width:100%"></table>';
+        
+        const hasAggregations = Object.keys(columnAggregations).length > 0;
+        const metricsForCallback = AnalyseDesignerFramework.getState('metrics') || [];
+        const hasMetrics = metricsForCallback.length > 0;
+
+        // KRITISCH: Footer MUSS vor DataTable-Init erstellt werden
+        if (hasAggregations || hasMetrics) {
+          const table = this.refs.dataTableWrapper.querySelector('#dataTable');
+          const tfoot = document.createElement('tfoot');
+          const tr = document.createElement('tr');
+          columns.forEach(() => {
+            const th = document.createElement('th');
+            th.textContent = ''; // Placeholder
+            tr.appendChild(th);
+          });
+          tfoot.appendChild(tr);
+          table.appendChild(tfoot);
+        }
+        
+        const footerCallback = (hasAggregations || hasMetrics) ? function(row, data, start, end, display) {
+
+          const api = this.api();
+          
+          selectedFields.forEach((field, colIndex) => {
+            const fullName = `${field.table}.${field.field}`;
+            const aggs = columnAggregations[fullName];
+            
+            if (aggs && field.type === 'number') {
+              const column = api.column(colIndex);
+              const values = column.data().toArray().map(row => parseFloat(row[fullName]) || 0);
+              
+              let footerText = '';
+              if (aggs.sum)   footerText += `Σ ${values.reduce((a, b) => a + b, 0).toLocaleString('de-CH')} `;
+              if (aggs.avg)   footerText += `Ø ${(values.reduce((a, b) => a + b, 0) / Math.max(values.length, 1)).toFixed(0).toLocaleString('de-CH')} `;
+              if (aggs.min)   footerText += `Min ${Math.min(...values).toLocaleString('de-CH')} `;
+              if (aggs.max)   footerText += `Max ${Math.max(...values).toLocaleString('de-CH')} `;
+              if (aggs.count) footerText += `# ${values.length} `;
+              
+              const footer = api.column(colIndex).footer();
+              if (footer) footer.innerHTML = footerText.trim();
+            }
+          });
+        } : undefined;
+        
+        const newDataTable = new DataTable('#dataTable', {
+          data: dataset,
+          columns: columns,
+          pageLength: 10,
+          footerCallback: (hasAggregations || hasMetrics) ? footerCallback : undefined,
+          language: {
+            search: 'Suchen:',
+            lengthMenu: '_MENU_ Einträge pro Seite',
+            info: '_START_ bis _END_ von _TOTAL_ Einträgen',
+            infoEmpty: '0 Einträge',
+            infoFiltered: '(gefiltert von _MAX_ Einträgen)',
+            paginate: { first: 'Erste', last: 'Letzte', next: 'Nächste', previous: 'Vorherige' }
+          }
+        });
+        
+        // Footer nach jedem Redraw erneut berechnen (unabhängig von Metriken/Spalten-Aggregationen)
+        try { $('#dataTable').on('draw.dt', () => { try { this.reapplyColumnAggregations(); } catch(e) {} }); } catch(e) {}
+
+        AnalyseDesignerFramework.setState('dataTable', newDataTable);
+        this.setupDragAndDrop();
+        this.setupCellDrag();
+      },
+      
+      renderMetricSparklines(data) {
+        try {
+          const metrics = AnalyseDesignerFramework.getState('metrics') || [];
+          if (!metrics.length) return;
+          const xAxis = AnalyseDesignerFramework.getState('xAxis'); // optional
+
+          // Hilfsfunktion: Punkte -> SVG Pfad
+          const toPath = (arr, w=120, h=28, pad=4) => {
+            if (!arr.length) return '';
+            const min = Math.min(...arr), max = Math.max(...arr);
+            const span = (max - min) || 1;
+            const dx = (w - pad*2) / Math.max(arr.length-1,1);
+            const mapY = v => h - pad - ((v - min) / span) * (h - pad*2);
+            let d = '';
+            arr.forEach((v,i) => {
+              const x = pad + i*dx, y = mapY(v);
+              d += (i ? ' L ' : 'M ') + x.toFixed(1) + ' ' + y.toFixed(1);
+            });
+            return { d, w, h };
+          };
+
+          // Datenreihen je Metrik aggregieren
+          const makeSeries = (metric) => {
+            const key = `${metric.table}.${metric.field}`;
+            if (xAxis && xAxis.table && xAxis.field) {
+              const xKey = `${xAxis.table}.${xAxis.field}`;
+              const buckets = new Map();
+              data.forEach(r => {
+                const x = r[xKey];
+                const y = parseFloat(String(r[key]).replace(/[^0-9\.\-]/g,'')) || 0;
+                if (!buckets.has(x)) buckets.set(x, []);
+                buckets.get(x).push(y);
+              });
+              const ordered = Array.from(buckets.keys());
+              const vals = ordered.map(k => {
+                const arr = buckets.get(k) || [];
+                switch (metric.aggregation) {
+                  case 'sum': return arr.reduce((a,b)=>a+b,0);
+                  case 'min': return Math.min(...arr);
+                  case 'max': return Math.max(...arr);
+                  case 'count': return arr.length;
+                  default: return arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 0;
+                }
+              });
+              return vals;
+            } else {
+              // einfache Folge
+              const vals = data.map(r => parseFloat(String(r[key]).replace(/[^0-9\.\-]/g,'')) || 0);
+              return vals.slice(-20); // letzte 20 Werte
+            }
+          };
+
+          // in vorhandene Metrik-Karten einfügen (Container mit data-metric-index)
+          const cards = document.querySelectorAll('[data-metric-index]');
+          cards.forEach(card => {
+            const idx = parseInt(card.getAttribute('data-metric-index'), 10);
+            const m = metrics[idx];
+            if (!m) return;
+            const series = makeSeries(m);
+            const svgBox = card.querySelector('.metric-sparkline');
+            if (!svgBox) return;
+            const { d, w, h } = toPath(series);
+            svgBox.innerHTML = d ? `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><path d="${d}" fill="none" stroke="currentColor" stroke-width="2"/></svg>` : '';
+          });
+        } catch(e) {
+          console.warn('renderMetricSparklines failed:', e);
+        }
+      },
+
+      updateHeaderBehaviorIndicator(header) {
+        const behavior = header.dataset.behavior || 'none';
+        const view = header.dataset.view || '';
+        const tpl = header.dataset.linkTemplate || '';
+        
+        // Badge-Element finden/erstellen (sichtbar rechts im TH, neben der Drag-Hint-Ikone)
+        let badge = header.querySelector('.col-behavior');
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.className = 'col-behavior';
+          badge.style.position = 'absolute';
+          badge.style.top = '0.5rem';
+          badge.style.right = '2.4rem'; // links neben "⋮⋮"
+          badge.style.zIndex = '2';
+          badge.style.fontSize = '12px';
+          badge.style.opacity = '0.95';
+          badge.style.lineHeight = '1';
+          badge.style.pointerEvents = 'none';
+          badge.style.userSelect = 'none';
+          header.appendChild(badge);
+        }
+
+
+        // Symbol + Titel setzen
+        if (behavior === 'datalink') {
+          badge.textContent = '🔗';
+          const ep = header.dataset.datalinkEndpoint || '(kein Endpoint)';
+          header.title = `DataLink\nEndpoint: ${ep}\nTemplate: ${tpl || '(nicht gesetzt)'}`;
+        } else if (behavior === 'subview') {
+
+          const v = (view || 'right').toLowerCase();
+          const icon = v === 'left' ? '🧩◀' : v === 'full' ? '🧩⤢' : '🧩▶';
+          badge.textContent = icon;
+          header.title = `Subview (${v})`;
+        } else {
+          badge.textContent = '';
+          header.title = '';
+        }
+      },
+
+      updateColumnAggregation(header, type) {
+        try {
+          const table = document.querySelector('#dataTable');
+          if (!table) return;
+
+          // 1) Keine Labels im THEAD: evtl. alte Header-Badges entfernen
+          header.querySelectorAll('.col-agg-head').forEach(n => n.remove());
+
+          const colIdx = Array.from(header.parentNode.children).indexOf(header);
+          const bodyRows = table.tBodies[0]?.rows || [];
+
+          // 2) Werte einsammeln
+          const values = [];
+          for (let i = 0; i < bodyRows.length; i++) {
+            const cell = bodyRows[i].cells[colIdx];
+            const raw  = (cell?.textContent || '').replace(/[^0-9\.\-]/g, '');
+            const num  = parseFloat(raw);
+            if (!isNaN(num)) values.push(num);
+          }
+
+          // 3) Footer-Zeile sicherstellen (genau 1 Zeile)
+          let tfoot = table.tFoot;
+          if (!tfoot) tfoot = table.createTFoot();
+          let row = tfoot.rows[0];
+          if (!row) row = tfoot.insertRow(0);
+          // auf Spaltenanzahl bringen
+          while (row.cells.length < header.parentNode.children.length) row.insertCell();
+          while (row.cells.length > header.parentNode.children.length) row.deleteCell(-1);
+
+          // 4) Ergebnis berechnen oder leeren
+          let result = null;
+          switch (type) {
+            case 'sum':   result = values.reduce((a,b)=>a+b,0); break;
+            case 'avg':   result = values.length ? values.reduce((a,b)=>a+b,0)/values.length : null; break;
+            case 'min':   result = values.length ? Math.min(...values) : null; break;
+            case 'max':   result = values.length ? Math.max(...values) : null; break;
+            case 'count': result = values.length; break;
+            default:      result = null;
+          }
+
+          // 5) Genau die Zelle dieser Spalte aktualisieren, alle anderen unberührt
+          const c = row.cells[colIdx];
+          if (result === null) {
+            c.textContent = '';
+          } else {
+            // hübsch formatiert, CH-Format
+            try { c.textContent = result.toLocaleString('de-CH'); }
+            catch { c.textContent = String(result); }
+          }
+          c.style.fontWeight = '600';
+          c.style.textAlign  = 'right';
+          c.style.background = '#f9fafb';
+
+        } catch(e) {
+          console.warn('Aggregation-Fehler:', e);
+        }
+      },      
+
+      reapplyColumnAggregations() {
+        try {
+          const table = document.querySelector('#dataTable');
+          const thead = table?.tHead;
+          if (!thead) return;
+          const headers = Array.from(thead.rows[0].cells);
+          headers.forEach(h => {
+            const agg = h.dataset?.aggregation || '';
+            // '' = keine Aggregation → Footer-Zelle leeren, sonst berechnen
+            this.updateColumnAggregation(h, agg || null);
+          });
+        } catch (e) {
+          console.warn('reapplyColumnAggregations failed:', e);
+        }
+      },
+
+      removeTable(tableName) {
+        try {
+          const fields = AnalyseDesignerFramework.getState('selectedFields') || [];
+          const next = fields.filter(f => f.table !== tableName);
+          AnalyseDesignerFramework.setState('selectedFields', next);
+          AnalyseDesignerFramework.showNotification(`Tabelle „${tableName}” entfernt.`, 'success');
+          this.refreshPreview();
+        } catch (err) {
+          AnalyseDesignerFramework.showNotification('Fehler beim Entfernen der Tabelle: ' + (err?.message || err), 'error');
+        }
+      },
+      
+      removeColumn(field) {
+        try {
+          const fields = AnalyseDesignerFramework.getState('selectedFields') || [];
+          const next = fields.filter(f => !(f.table === field.table && f.field === field.field));
+          AnalyseDesignerFramework.setState('selectedFields', next);
+          AnalyseDesignerFramework.showNotification(`Spalte „${field.table}.${field.field}” entfernt.`, 'success');
+          this.refreshPreview();
+        } catch (err) {
+          AnalyseDesignerFramework.showNotification('Fehler beim Entfernen der Spalte: ' + (err?.message || err), 'error');
+        }
+      },
+
+      addQuickFilter(tableName, fieldName, value) {
+        try {
+          const filters = AnalyseDesignerFramework.getState('filters') || [];
+          const fieldKey = `${tableName}.${fieldName}`;
+          const existing = filters.find(f => f.fieldKey === fieldKey);
+          if (existing) {
+            existing.conditions.push({ id: Date.now(), operator: '=', value: value });
+          } else {
+            filters.push({
+              id: Date.now(),
+              fieldKey: fieldKey,
+              table: tableName,
+              field: fieldName,
+              type: 'text',
+              localLogic: 'OR',
+              conditions: [{ id: Date.now(), operator: '=', value: value }]
+            });
+          }
+          AnalyseDesignerFramework.setState('filters', filters);
+          this.renderFilters();
+          AnalyseDesignerFramework.showNotification(`Filter gesetzt: ${tableName}.${fieldName} = "${value}"`, 'success');
+          this.refreshPreview();
+        } catch (err) {
+          AnalyseDesignerFramework.showNotification('Filter konnte nicht gesetzt werden: ' + (err?.message || err), 'error');
+        }
+      },
+      
+      refreshPreview() {
+        // Versuche gängige Render-Methoden dieser Seite aufzurufen
+        try {
+          if (typeof this.renderPreview === 'function') return this.renderPreview();
+          if (typeof this.renderDataPreview === 'function') return this.renderDataPreview();
+          if (typeof this.buildPreview === 'function') return this.buildPreview();
+          // Fallback: DataTable neu aufbauen durch künstliches Re-Init
+          const evt = new CustomEvent('analyse:preview:refresh');
+          document.dispatchEvent(evt);
+        } catch (e) {
+          // letzte Reserve: Hinweis an User
+          AnalyseDesignerFramework.showNotification('Vorschau konnte nicht automatisch aktualisiert werden. Bitte Ansicht neu laden.', 'warning');
+        }
+      },
+     
+      refreshAxisChips() {
+        const x = AnalyseDesignerFramework.getState('xAxis');
+        const y = AnalyseDesignerFramework.getState('yAxis');
+
+        const render = (host, field, key) => {
+          if (!host) return;
+          host.innerHTML = '';
+          if (field && field.table && field.field) {
+            const chip = document.createElement('div');
+            chip.className = 'axis-chip';
+            chip.style.display = 'flex';
+            chip.style.alignItems = 'center';
+            chip.style.justifyContent = 'space-between';
+            chip.style.padding = '6px 10px';
+            chip.style.borderRadius = '8px';
+            chip.style.background = 'linear-gradient(90deg,#007bff,#00aaff)';
+            chip.style.color = '#fff';
+            chip.style.fontWeight = '600';
+            chip.textContent = `${field.table}.${field.field}`;
+
+            const close = document.createElement('span');
+            close.textContent = '×';
+            close.title = 'Achse entfernen';
+            close.style.cursor = 'pointer';
+            close.style.marginLeft = '10px';
+            close.style.fontWeight = '700';
+            close.addEventListener('click', (e)=>{
+              e.stopPropagation();
+              AnalyseDesignerFramework.setState(key, null);
+              this.refreshAxisChips();
+            });
+
+            chip.appendChild(close);
+            host.appendChild(chip);
+          }
+        };
+
+        render(this.refs.xAxisDropZone, x, 'xAxis');
+        render(this.refs.yAxisDropZone, y, 'yAxis');
+      },
+
+            refreshAxisChips() {
+        const x = AnalyseDesignerFramework.getState('xAxis');
+        const y = AnalyseDesignerFramework.getState('yAxis');
+
+        const render = (host, field, key) => {
+          if (!host) return;
+          host.innerHTML = '';
+          if (field && field.table && field.field) {
+            const chip = document.createElement('div');
+            chip.className = 'axis-chip';
+            chip.style.display = 'inline-flex';
+            chip.style.alignItems = 'center';
+            chip.style.gap = '8px';
+            chip.style.padding = '8px 12px';
+            chip.style.borderRadius = '10px';
+            chip.style.background = 'linear-gradient(90deg,#1e90ff,#1792d2)';
+            chip.style.color = '#fff';
+            chip.style.fontWeight = '600';
+            chip.style.userSelect = 'none';
+            chip.textContent = `${field.table}.${field.field}`;
+
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'axis-clear';
+            btn.textContent = '×';
+            btn.title = 'Achse leeren';
+            btn.style.border = 'none';
+            btn.style.background = 'rgba(255,255,255,0.2)';
+            btn.style.width = '22px';
+            btn.style.height = '22px';
+            btn.style.borderRadius = '11px';
+            btn.style.cursor = 'pointer';
+            btn.style.fontWeight = '700';
+            btn.style.lineHeight = '1';
+            btn.style.color = '#fff';
+            btn.addEventListener('click', (e) => {
+              e.preventDefault();
+              AnalyseDesignerFramework.setState(key, null);
+              this.refreshAxisChips();
+            });
+
+            chip.appendChild(btn);
+            host.appendChild(chip);
+          }
+        };
+
+        render(this.refs.xAxisDropZone, x, 'xAxis');
+        render(this.refs.yAxisDropZone, y, 'yAxis');
+      },
+
+      setupDragAndDrop() {
+
+
+
+        setTimeout(() => {
+          const headers = document.querySelectorAll('#dataTable thead th');
+          const selectedFields = AnalyseDesignerFramework.getState('selectedFields');
+          
+          headers.forEach((header, idx) => {
+            header.draggable = true;
+            // Exakten Spalten-Schlüssel als Attribut hinterlegen (ordnungsgleich zu selectedFields)
+            if (selectedFields[idx]) {
+              header.dataset.col = `${selectedFields[idx].table}.${selectedFields[idx].field}`;
+            }
+            // Default-Interaktion pro Spalte (No-Code via data-* veränderbar)
+            if (!header.dataset.behavior) header.dataset.behavior = 'none';   // none|datalink|subview
+            if (!header.dataset.view)     header.dataset.view     = 'right';  // left|right|full
+            if (!header.dataset.linkTemplate) header.dataset.linkTemplate = ''; // z. B. /app/account/{Account.Id}
+            // Indikator direkt aktualisieren
+            this.updateHeaderBehaviorIndicator(header);
+
+            // ➜ Sichtbares Badge + Tooltip
+            this.updateHeaderBehaviorIndicator(header);
+            
+            // Header sichtbar/positionierbar machen (für Hint & Badge)
+            header.style.position = 'relative';
+            header.style.overflow = 'visible';
+            header.style.paddingRight = '2.8rem';
+
+            const hint = document.createElement('span');
+            hint.className = 'drag-hint';
+            hint.textContent = '⋮⋮';
+            hint.style.position = 'absolute';
+            hint.style.top = '0.5rem';
+            hint.style.right = '0.6rem';
+            hint.style.lineHeight = '1';
+            hint.style.userSelect = 'none';
+            hint.style.pointerEvents = 'none';
+            header.appendChild(hint);
+
+            
+            header.addEventListener('dragstart', (e) => {
+              const columnKey = header.dataset.col;
+              const field = columnKey ? selectedFields.find(f => `${f.table}.${f.field}` === columnKey) : null;
+              if (!field) {
+                AnalyseDesignerFramework.showNotification('⚠️ Ungültiges Drag-&-Drop-Objekt.', 'warning');
+                return;
+              }
+              e.dataTransfer.setData('application/json', JSON.stringify(field));
+              e.dataTransfer.effectAllowed = 'copy';
+              header.classList.add('dragging');
+            });
+            
+            header.addEventListener('dragend', () => {
+              header.classList.remove('dragging');
+            });
+            
+            header.addEventListener('contextmenu', (e) => {
+              e.preventDefault();
+              const columnKey = header.dataset.col;
+              const field = columnKey ? selectedFields.find(f => `${f.table}.${f.field}` === columnKey) : null;
+              if (field) {
+                // Hinweis: showContextMenu darf header.dataset.* ändern
+                this.showContextMenu(e.pageX, e.pageY, field, header);
+                // Nach möglicher Änderung UI aktualisieren
+                setTimeout(() => this.updateHeaderBehaviorIndicator(header), 0);
+              }
+            });
+          });
+
+          // Kontextmenü-Fallback: fange Rechtsklicks überall im thead ab (auch auf Icons)
+          const thead = document.querySelector('#dataTable thead');
+          if (thead) {
+            thead.addEventListener('contextmenu', (ev) => {
+              const header = ev.target.closest('th');
+              if (!header) return;
+              ev.preventDefault();
+              const selectedFields = AnalyseDesignerFramework.getState('selectedFields');
+              const columnKey = header.dataset.col;
+              const field = columnKey ? selectedFields.find(f => `${f.table}.${f.field}` === columnKey) : null;
+              if (field) {
+                this.showContextMenu(ev.pageX, ev.pageY, field, header);
+                setTimeout(() => this.updateHeaderBehaviorIndicator(header), 0);
+              }
+            });
+          }
+
+          // Row-Klicks am tbody – verhalten pro Spalte über data-behavior|data-view|data-link-template
+          const tbody = document.querySelector('#dataTable tbody');
+          if (tbody) {
+            // Zellwert → Schnellfilter per Doppelklick (gleich =) — EINMAL registrieren, nicht pro Klick
+            tbody.addEventListener('dblclick', (e) => {
+              const cell = e.target.closest('td');
+              if (!cell) return;
+              const headers = document.querySelectorAll('#dataTable thead th');
+              const colIndex = cell.cellIndex;
+              const header = headers[colIndex];
+              if (!header || !header.dataset || !header.dataset.col) return;
+              const [tableName, fieldName] = header.dataset.col.split('.');
+              const rawValue = cell.textContent.trim();
+              if (!tableName || !fieldName || rawValue === '') return;
+              this.addQuickFilter(tableName, fieldName, rawValue);
+            });
+
+            tbody.addEventListener('click', (e) => {
+              const cell = e.target.closest('td');
+              if (!cell) return;
+              const rowEl = cell.parentElement;
+              const colIndex = cell.cellIndex;
+              const header = headers[colIndex];
+              if (!header) return;
+
+              const behavior = header.dataset.behavior || 'none';
+              if (behavior === 'none') return;
+
+              // Row-Objekt: Key = header.dataset.col (table.field)
+              const rowObj = {};
+              [...rowEl.children].forEach((td, i) => {
+                const key = headers[i]?.dataset?.col;
+                if (key) rowObj[key] = td.textContent.trim();
+              });
+
+              if (behavior === 'datalink') {
+                const tpl = header.dataset.linkTemplate || '';
+                const url = tpl.replace(/\{([^}]+)\}/g, (_, k) => (rowObj[k] ?? ''));
+                AnalyseDesignerFramework.emit('analyse:datalink', {
+                  url,
+                  column: header.dataset.col,
+                  view: header.dataset.view || 'right',
+                  row: rowObj
+                });
+              } else if (behavior === 'subview') {
+                AnalyseDesignerFramework.emit('analyse:subview', {
+                  variant: header.dataset.view || 'right', // left|right|full
+                  column: header.dataset.col,
+                  row: rowObj
+                });
+              }
+            });
+          }
+        // Standard-Achsen vorbelegen, wenn leer
+        (() => {
+          const hasX = !!AnalyseDesignerFramework.getState('xAxis');
+          const hasY = !!AnalyseDesignerFramework.getState('yAxis');
+          if (hasX && hasY) return;
+
+          const sf = AnalyseDesignerFramework.getState('selectedFields') || [];
+          const byKey = (t,f) => sf.find(x => x.table===t && x.field===f);
+
+          // Priorität 1: gewünschte Defaults
+          let x = AnalyseDesignerFramework.getState('xAxis') || byKey('Account','Region');
+          let y = AnalyseDesignerFramework.getState('yAxis') || byKey('Opportunity','Amount');
+
+          // Fallbacks: erste Text-Spalte als X, erste Number/Amount/Revenue als Y
+          if (!x) {
+            x = sf.find(f => (f.type === 'text')) || sf[0] || null;
+          }
+          if (!y) {
+            y = sf.find(f => f.type === 'number')
+              || sf.find(f => /amount|revenue|value|score|id/i.test(f.field))
+              || null;
+          }
+
+          if (x) AnalyseDesignerFramework.setState('xAxis', x);
+          if (y) AnalyseDesignerFramework.setState('yAxis', y);
+        })();
+
+        // Chips für X/Y anhand des aktuellen States zeichnen
+        this.refreshAxisChips();
+
+        }, 500);
+      },
+
+      
+      setupCellDrag() {
+        // macht Tabellenzellen draggable und erlaubt Drop in die Filter-Zone
+        setTimeout(() => {
+          const table = document.querySelector('#dataTable');
+          if (!table) return;
+
+          const thead = table.tHead;
+          const tbody = table.tBodies[0];
+          if (!thead || !tbody) return;
+
+          const headers = Array.from(thead.rows[0].cells);
+
+          // 1) Zellen draggable machen
+          tbody.querySelectorAll('td').forEach(td => {
+            td.setAttribute('draggable', 'true');
+
+            td.addEventListener('dragstart', (e) => {
+              const colIndex = td.cellIndex;
+              const header   = headers[colIndex];
+              const key      = header?.dataset?.col || '';     // "Table.Field"
+              const value    = (td.textContent || '').trim();
+
+              // Falls nichts Brauchbares – abbrechen
+              if (!key || value === '') return;
+
+              // Kompaktes Payload für Filter-Drop
+              const [tableName, fieldName] = key.split('.');
+              const payload = {
+                table: tableName,
+                field: fieldName,
+                value: value,
+                isCellDrag: true
+              };
+
+
+              e.dataTransfer.setData('application/json', JSON.stringify(payload));
+              e.dataTransfer.effectAllowed = 'copy';
+            });
+          });
+
+          // 2) Drop-Zone (Filter) finden
+          const filterZone = document.querySelector('[data-ref="filtersDropZone"]');
+          if (!filterZone) return;
+
+          // optische Reaktion
+          ['dragenter', 'dragover'].forEach(ev =>
+            filterZone.addEventListener(ev, (e) => {
+              e.preventDefault();
+              filterZone.classList.add('drag-over');
+            })
+          );
+          ['dragleave', 'drop'].forEach(ev =>
+            filterZone.addEventListener(ev, () => filterZone.classList.remove('drag-over'))
+          );
+
+          // eigentlicher Drop → QuickFilter setzen
+          filterZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            const raw = e.dataTransfer.getData('application/json');
+            if (!raw || raw === 'undefined') return;
+
+            let data;
+            try { data = JSON.parse(raw); } catch { return; }
+            if (!data || !data.table || !data.field) return;
+
+            // Filter an State anhängen (Operator "=" als Default)
+            try {
+              const filters = AnalyseDesignerFramework.getState('filters') || [];
+              const fieldKey = `${data.table}.${data.field}`;
+              const existing = filters.find(f => f.fieldKey === fieldKey);
+              if (existing) {
+                existing.conditions.push({ id: Date.now(), operator: '=', value: data.value });
+              } else {
+                filters.push({
+                  id: Date.now(),
+                  fieldKey: fieldKey,
+                  table: data.table,
+                  field: data.field,
+                  type: 'text',
+                  localLogic: 'OR',
+                  conditions: [{ id: Date.now(), operator: '=', value: data.value }]
+                });
+              }
+              AnalyseDesignerFramework.setState('filters', filters);
+              this.renderFilters();
+              AnalyseDesignerFramework.showNotification(`Filter gesetzt: ${data.table}.${data.field} = "${data.value}"`, 'success');
+            } catch (err) {
+              AnalyseDesignerFramework.showNotification('Filter konnte nicht gesetzt werden: ' + (err?.message || err), 'error');
+            }
+          });
+        }, 300);
+      },
+      
+    showContextMenu(x, y, field, header) {
+      const existing = document.getElementById('columnContextMenu');
+      if (existing) existing.remove();
+      
+      const menu = document.createElement('div');
+      menu.id = 'columnContextMenu';
+      menu.className = 'context-menu';
+      menu.style.position = 'absolute';
+      menu.style.top = y + 'px';
+      menu.style.left = x + 'px';
+      menu.style.zIndex = '10000';
+      menu.style.minWidth = '260px';
+      menu.style.maxWidth = '320px';
+      menu.style.background = '#fff';
+      menu.style.border = '1px solid #e5e7eb';
+      menu.style.borderRadius = '10px';
+      menu.style.boxShadow = '0 12px 30px rgba(0,0,0,0.16)';
+      menu.style.padding = '10px 12px';
+      menu.style.fontSize = '13px';
+      menu.style.lineHeight = '1.25';
+      
+      // aktuelle Header-Config lesen (No-Code über data-*)
+      const curBehavior = header?.dataset?.behavior || 'none';
+      const curView = header?.dataset?.view || 'right';
+      const curTpl = header?.dataset?.linkTemplate || '';
+      const curEp  = header?.dataset?.datalinkEndpoint || '';
+
+      
+      menu.innerHTML = `
+        <div style="font-weight:600;margin:4px 0 2px 0;">Metriken</div>
+        <div style="font-size:12px;color:#64748b;margin:0 0 8px 0;">Hinweis: Diese Optionen berechnen die <b>Spalten-Aggregation im Tabellen-Footer</b>. Die <b>Metriken oben</b> (KPI) sind davon unabhängig.</div>
+        <div class="cm-row"><label><input type="radio" name="agg" value="sum"> Spalten-Summe</label></div>
+        <div class="cm-row"><label><input type="radio" name="agg" value="avg"> Spalten-Durchschnitt</label></div>
+        <div class="cm-row"><label><input type="radio" name="agg" value="min"> Spalten-Minimum</label></div>
+        <div class="cm-row"><label><input type="radio" name="agg" value="max"> Spalten-Maximum</label></div>
+        <div class="cm-row"><label><input type="radio" name="agg" value="count"> Spalten-Anzahl</label></div>
+
+        
+        <hr style="border:none;border-top:1px solid #eee;margin:10px 0;">
+        
+        <div style="font-weight:600;margin:0 0 6px 0;">Verhalten (Spalte)</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
+          <label><input type="radio" name="bhv" value="none"   ${curBehavior==='none'?'checked':''}> Keins</label>
+          <label><input type="radio" name="bhv" value="datalink" ${curBehavior==='datalink'?'checked':''}> DataLink</label>
+          <label><input type="radio" name="bhv" value="subview" ${curBehavior==='subview'?'checked':''}> Subview</label>
+        </div>
+        <div data-conf="datalink" style="margin:6px 0;${curBehavior==='datalink'?'':'display:none;'}">
+          <div style="font-size:12px;margin-bottom:4px;color:#374151;">Endpoint (POST, entscheidet Modus & Ziel)</div>
+          <input id="cmEndpoint" type="text" value="${curEp.replace(/"/g,'&quot;')}" placeholder="/api/datalink/resolve" style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;margin-bottom:6px;">
+          <div style="font-size:12px;margin-bottom:4px;color:#374151;">Link-Template (optional, z. B. /app/account/{Account.Id})</div>
+          <input id="cmTpl" type="text" value="${curTpl.replace(/"/g,'&quot;')}" style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;">
+        </div>
+        <div data-conf="subview" style="margin:6px 0;${curBehavior==='subview'?'':'display:none;'}">
+          <div style="font-size:12px;margin-bottom:4px;color:#374151;">Subview-Ansicht</div>
+          <label><input type="radio" name="view" value="left"  ${curView==='left'?'checked':''}> Links</label> 
+          <label><input type="radio" name="view" value="right" ${curView==='right'?'checked':''}> Rechts</label> 
+          <label><input type="radio" name="view" value="full"  ${curView==='full'?'checked':''}> Voll</label>
+        </div>
+        
+        <hr style="border:none;border-top:1px solid #eee;margin:10px 0;">
+        
+        <div style="display:flex;gap:8px;justify-content:space-between;">
+          <button id="cmSave"  style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;background:#111827;color:#fff;">Speichern</button>
+          <button id="cmClear" style="padding:6px 10px;border:1px solid #e5e7eb;border-radius:6px;background:#fff;">Zurücksetzen</button>
+          <button id="cmRemoveColumn" style="padding:6px 10px;border:1px solid #fca5a5;border-radius:6px;background:#fef2f2;color:#b91c1c;">Spalte löschen</button>
+        </div>
+      `;
+
+    // Aggregationsauswahl auswerten → Footer-Berechnung
+    const aggRadios = menu.querySelectorAll('input[name="agg"]');
+      aggRadios.forEach(r => {
+        r.addEventListener('change', () => {
+          const val = menu.querySelector('input[name="agg"]:checked')?.value || '';
+          if (!header) return;
+          header.dataset.aggregation = val; // '' = keine
+          this.updateColumnAggregation(header, val || null);
+          menu.remove();
+        });
+      });
+
+     
+      document.body.appendChild(menu);
+      menu.classList.add('active');
+
+      // Einfach/Erweitert Toggle + Endpoint-Feld
+      (function(){
+        const dl = menu.querySelector('[data-conf="datalink"]');
+        if (!dl) return;
+        const curEp  = header?.dataset?.datalinkEndpoint || '';
+        const toggle = document.createElement('div');
+        toggle.style.textAlign = 'right';
+        toggle.style.margin = '6px 0';
+        toggle.innerHTML = '<a href="#" id="cmToggleAdv">Erweitert ▾</a>';
+        dl.parentNode.insertBefore(toggle, dl);
+
+        const wrap = document.createElement('div');
+        wrap.id = 'cmAdv';
+        wrap.innerHTML = `
+          <div style="font-size:12px;margin-bottom:4px;color:#374151;">Endpoint (POST, entscheidet Modus & Ziel)</div>
+          <input id="cmEndpoint" type="text" value="${curEp.replace(/"/g,'&quot;')}" placeholder="/api/datalink/resolve" style="width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;margin-bottom:6px;">
+        `;
+        dl.parentNode.insertBefore(wrap, dl);
+
+        // Initialzustand: sicht- oder verborgen je nachdem, ob Endpoint gesetzt ist
+        const link = toggle.querySelector('#cmToggleAdv');
+        const setState = (open) => {
+          wrap.style.display = open ? '' : 'none';
+          link.textContent = open ? 'Erweitert ▴' : 'Erweitert ▾';
+        };
+        setState(!!curEp);
+
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          const open = (wrap.style.display === 'none' || !wrap.style.display);
+          setState(open);
+        });
+      })();
+      menu.classList.add('active');
+
+
+      // Umschalten der Behavior-UI
+      const radios = menu.querySelectorAll('input[name="bhv"]');
+      const sectionLink = menu.querySelector('[data-conf="datalink"]');
+      const sectionSubview = menu.querySelector('[data-conf="subview"]');
+      radios.forEach(r => {
+        r.addEventListener('change', () => {
+          const val = menu.querySelector('input[name="bhv"]:checked')?.value || 'none';
+          sectionLink.style.display = (val === 'datalink') ? '' : 'none';
+          sectionSubview.style.display = (val === 'subview') ? '' : 'none';
+        });
+      });
+
+      // Speichern
+      menu.querySelector('#cmSave').addEventListener('click', () => {
+        const behavior = menu.querySelector('input[name="bhv"]:checked')?.value || 'none';
+        const view = menu.querySelector('input[name="view"]:checked')?.value || 'right';
+        const tpl  = (menu.querySelector('#cmTpl')?.value || '').trim();
+        const ep   = (menu.querySelector('#cmEndpoint')?.value || '').trim();
+
+        if (header) {
+          header.dataset.behavior = behavior;
+          header.dataset.view = view;
+          header.dataset.linkTemplate = tpl;
+          header.dataset.datalinkEndpoint = ep;
+          if (typeof this.updateHeaderBehaviorIndicator === 'function') {
+            this.updateHeaderBehaviorIndicator(header);
+          }
+        }
+        AnalyseDesignerFramework.showNotification('Spalteneinstellungen gespeichert.', 'success');
+        menu.remove();
+        // WICHTIG: Footer-Aggregationen nach UI-Änderungen neu anwenden
+        try { this.reapplyColumnAggregations(); } catch(e) {}
+      });
+
+
+      // Zurücksetzen
+      // Zurücksetzen
+      menu.querySelector('#cmClear').addEventListener('click', () => {
+        if (header) {
+          header.dataset.behavior = 'none';
+          header.dataset.view = 'right';
+          header.dataset.linkTemplate = '';
+          header.dataset.datalinkEndpoint = '';
+          if (typeof this.updateHeaderBehaviorIndicator === 'function') {
+            this.updateHeaderBehaviorIndicator(header);
+          }
+        }
+        AnalyseDesignerFramework.showNotification('Spaltenverhalten zurückgesetzt.', 'info');
+        menu.remove();
+      });
+
+
+      // Spalte entfernen (nur diese Spalte)
+      menu.querySelector('#cmRemoveColumn').addEventListener('click', () => {
+        this.removeColumn(field);
+        menu.remove();
+      });
+
+      const close = (e2) => {
+        if (!menu.contains(e2.target)) {
+          document.removeEventListener('click', close);
+          menu.remove();
+        }
+      };
+      setTimeout(() => document.addEventListener('click', close), 0);
+    },
+
+});
+
+    // ============================================================================
+    // CONFIG PANEL COMPONENT
+    // ============================================================================
+    
+    AnalyseDesignerFramework.registerComponent('ConfigPanel', {
+      template: `
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">⚙️ Konfiguration</div>
+              <div class="panel-subtitle">Metriken, Filter & Visualisierung</div>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="config-section">
+              <div class="config-section-title">
+                <span>📊 Metriken</span>
+              </div>
+              <div class="metric-list" data-ref="metricList">
+                <div class="drop-zone empty" style="min-height: 80px;">
+                  <div class="drop-zone-hint">Ziehe numerische Felder hierher für Berechnungen</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="config-section">
+              <div class="config-section-title">🔍 Filter</div>
+              <div class="drop-zone empty" data-ref="filterDropZone">
+                <div class="drop-zone-hint">Ziehe Spalten hierher um Filter hinzuzufügen</div>
+              </div>
+            </div>
+
+            <div class="config-section">
+              <div class="config-section-title">📈 Chart Konfiguration</div>
+              <div class="chart-config">
+                <div>
+                  <div class="axis-label">X-Achse (Dimension)</div>
+                  <div class="axis-drop-zone" data-ref="xAxisDropZone">
+                    <span style="color: var(--text-muted); font-size: 0.875rem;">Feld hier ablegen</span>
+                  </div>
+                </div>
+                <div>
+                  <div class="axis-label">Y-Achse (Metrik)</div>
+                  <div class="axis-drop-zone" data-ref="yAxisDropZone">
+                    <span style="color: var(--text-muted); font-size: 0.875rem;">Feld hier ablegen</span>
+                  </div>
+                </div>
+                <div style="grid-column: 1 / -1;">
+                  <label class="axis-label" for="chartType">Diagrammtyp</label>
+                  <select data-ref="chartType" style="width:100%; padding:.5rem; border:1.5px solid var(--border); border-radius:6px; background:var(--surface);">
+                    <option value="bar">Balken</option>
+                    <option value="line">Linie</option>
+                    <option value="pie">Kreis</option>
+                    <option value="doughnut">Donut</option>
+                    <option value="radar">Radar</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `,
+      
+      mounted() {
+        this.setupMetrics();
+        this.setupFilters();
+        this.setupChartConfig();
+        
+        AnalyseDesignerFramework.subscribe('stateChange:metrics', () => this.renderMetrics());
+        AnalyseDesignerFramework.subscribe('stateChange:filters', () => this.renderFilters());
+        AnalyseDesignerFramework.subscribe('stateChange:xAxis', () => this.updateAxisDisplay());
+        AnalyseDesignerFramework.subscribe('stateChange:yAxis', () => this.updateAxisDisplay());
+        AnalyseDesignerFramework.subscribe('stateChange:chartType', () => this.updateChartType());
+      },
+      
+      setupMetrics() {
+        this.refs.metricList.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'copy';
+          this.refs.metricList.classList.add('drag-over');
+        });
+        
+        this.refs.metricList.addEventListener('dragleave', () => {
+          this.refs.metricList.classList.remove('drag-over');
+        });
+        
+        this.refs.metricList.addEventListener('drop', (e) => {
+          e.preventDefault();
+          this.refs.metricList.classList.remove('drag-over');
+          const payload = e.dataTransfer.getData('application/json');
+          if (!payload || payload === 'undefined') {
+            AnalyseDesignerFramework.showNotification('⚠️ Ungültiges Drag-&-Drop-Objekt.', 'warning');
+            return;
+          }
+          let fieldData;
+          try { fieldData = JSON.parse(payload); } catch (err) {
+            AnalyseDesignerFramework.showNotification('⚠️ Ungültiges Drag-&-Drop-Objekt.', 'warning');
+            return;
+          }
+          this.handleMetricDrop(fieldData);
+        });
+      },
+      
+      handleMetricDrop(field) {
+        if (field.type !== 'number') {
+          AnalyseDesignerFramework.showNotification('⚠️ Nur numerische Felder können als Metriken verwendet werden', 'warning');
+          return;
+        }
+        
+        const metrics = AnalyseDesignerFramework.getState('metrics');
+        
+        if (metrics.find(m => m.table === field.table && m.field === field.field)) {
+          AnalyseDesignerFramework.showNotification('⚠️ Diese Metrik existiert bereits', 'warning');
+          return;
+        }
+        
+        metrics.push({ ...field, aggregation: 'sum' });
+        AnalyseDesignerFramework.setState('metrics', metrics);
+        try { this.reapplyColumnAggregations(); } catch(e) {}
+      },
+      
+      renderMetrics() {
+        const metrics = AnalyseDesignerFramework.getState('metrics');
+        
+        if (metrics.length === 0) {
+          this.refs.metricList.innerHTML = '<div class="drop-zone-hint">Ziehe numerische Felder hierher für Berechnungen</div>';
+          this.refs.metricList.classList.add('empty');
+          return;
+        }
+        
+        this.refs.metricList.classList.remove('empty');
+        this.refs.metricList.innerHTML = metrics.map((metric, index) => `
+          <div class="metric-card" data-metric-index="${index}">
+            <div class="metric-header">
+              <span class="metric-name">${metric.field}</span>
+              <button class="metric-remove" data-index="${index}">×</button>
+            </div>
+            <div class="metric-field">${metric.table}.${metric.field}</div>
+            <div>
+              <select data-index="${index}">
+                <option value="sum" ${metric.aggregation === 'sum' ? 'selected' : ''}>Summe</option>
+                <option value="avg" ${metric.aggregation === 'avg' ? 'selected' : ''}>Durchschnitt</option>
+                <option value="min" ${metric.aggregation === 'min' ? 'selected' : ''}>Minimum</option>
+                <option value="max" ${metric.aggregation === 'max' ? 'selected' : ''}>Maximum</option>
+                <option value="count" ${metric.aggregation === 'count' ? 'selected' : ''}>Anzahl</option>
+              </select>
+            </div>
+          </div>
+        `).join('');
+        
+        this.refs.metricList.querySelectorAll('.metric-remove').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            const index = parseInt(e.target.dataset.index);
+            const metrics = AnalyseDesignerFramework.getState('metrics');
+            metrics.splice(index, 1);
+            AnalyseDesignerFramework.setState('metrics', metrics);
+            try { this.reapplyColumnAggregations(); } catch(e) {}
+          });
+        });
+        
+        this.refs.metricList.querySelectorAll('select').forEach(select => {
+          select.addEventListener('change', (e) => {
+            const index = parseInt(e.target.dataset.index);
+            const metrics = AnalyseDesignerFramework.getState('metrics');
+            metrics[index].aggregation = e.target.value;
+            
+            const m = metrics[index];
+            const full = `${m.table}.${m.field}`;
+            const columnAggregations = AnalyseDesignerFramework.getState('columnAggregations');
+            AnalyseDesignerFramework.setState('metrics', metrics);
+            try { this.reapplyColumnAggregations(); } catch(e) {}
+
+          });
+        });
+      },
+      
+      setupFilters() {
+        const filterDropZone = this.refs.filterDropZone;
+        if (!filterDropZone) return;
+        
+        filterDropZone.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'copy';
+          filterDropZone.classList.add('drag-over');
+        });
+        
+        filterDropZone.addEventListener('dragleave', () => {
+          filterDropZone.classList.remove('drag-over');
+        });
+        
+        filterDropZone.addEventListener('drop', (e) => {
+          e.preventDefault();
+          filterDropZone.classList.remove('drag-over');
+          const payload = e.dataTransfer.getData('application/json');
+          if (!payload || payload === 'undefined') {
+            AnalyseDesignerFramework.showNotification('⚠️ Ungültiges Drag-&-Drop-Objekt.', 'warning');
+            return;
+          }
+          let fieldData;
+          try { fieldData = JSON.parse(payload); } catch (err) {
+            AnalyseDesignerFramework.showNotification('⚠️ Ungültiges Drag-&-Drop-Objekt.', 'warning');
+            return;
+          }
+          this.handleFilterDrop(fieldData);
+        });
+      },
+      
+      handleFilterDrop(field) {
+        const filters = AnalyseDesignerFramework.getState('filters');
+        if (!field || !field.table || !field.field) {
+          AnalyseDesignerFramework.showNotification('⚠️ Dieses Element kann nicht als Filter verwendet werden.', 'warning');
+          return;
+        }
+        
+        const operator = field.isCellDrag ? (field.type === 'text' ? '=' : '=') : '=';
+        const value = field.isCellDrag ? (field.value ?? '') : '';
+        
+        const fieldKey = `${field.table}.${field.field}`;
+        
+        const existingGroup = filters.find(f => f.fieldKey === fieldKey);
+        
+        if (existingGroup) {
+          existingGroup.conditions.push({
+            id: Date.now(),
+            operator: operator,
+            value: value
+          });
+        } else {
+          filters.push({
+            id: Date.now(),
+            fieldKey: fieldKey,
+            table: field.table,
+            field: field.field,
+            type: field.type,
+            localLogic: 'OR',
+            conditions: [{
+              id: Date.now(),
+              operator: operator,
+              value: value
+            }]
+          });
+        }
+        AnalyseDesignerFramework.setState('filters', filters);
+        this.renderFilters();
+      },
+      
+      renderFilters() {
+        const filters = AnalyseDesignerFramework.getState('filters');
+        const filterLogic = AnalyseDesignerFramework.getState('filterLogic') || 'AND';
+        
+        if (filters.length === 0) {
+          this.refs.filterDropZone.classList.add('empty');
+          this.refs.filterDropZone.innerHTML = '<div class="drop-zone-hint">Ziehe Spalten hierher um Filter hinzuzufügen</div>';
+          return;
+        }
+        
+        this.refs.filterDropZone.classList.remove('empty');
+        
+        const disabled = filters.length <= 1;
+        
+        let html = `
+          <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; align-items: center;">
+            <span style="font-size: 0.875rem; color: var(--text-muted);">Filter-Verknüpfung:</span>
+            <button class="filter-logic-toggle" data-logic="AND" ${disabled ? 'disabled' : ''} style="padding: 0.5rem 1rem; border: 1.5px solid var(--border); border-radius: 6px; background: ${disabled ? '#e2e8f0' : (filterLogic === 'AND' ? 'var(--primary)' : 'var(--surface)')}; color: ${disabled ? '#94a3b8' : (filterLogic === 'AND' ? 'white' : 'var(--text)')}; cursor: ${disabled ? 'not-allowed' : 'pointer'}; font-weight: 600; opacity: ${disabled ? '0.5' : '1'};">UND</button>
+            <button class="filter-logic-toggle" data-logic="OR" ${disabled ? 'disabled' : ''} style="padding: 0.5rem 1rem; border: 1.5px solid var(--border); border-radius: 6px; background: ${disabled ? '#e2e8f0' : (filterLogic === 'OR' ? 'var(--primary)' : 'var(--surface)')}; color: ${disabled ? '#94a3b8' : (filterLogic === 'OR' ? 'white' : 'var(--text)')}; cursor: ${disabled ? 'not-allowed' : 'pointer'}; font-weight: 600; opacity: ${disabled ? '0.5' : '1'};">ODER</button>
+          </div>
+        `;
+        
+        html += filters.map((filterGroup, groupIndex) => `
+          <div class="filter-item">
+            <div class="filter-header">
+              <span class="filter-field">${filterGroup.table}.${filterGroup.field}</span>
+                <div style="display: flex; gap: 0.25rem;">
+                <button class="filter-add-condition" data-group-index="${groupIndex}" title="Weiteren Wert hinzufügen" style="background: var(--primary); border: none; color: white; cursor: pointer; font-size: 1rem; padding: 0.25rem 0.5rem; border-radius: 4px; font-weight: 600;">+</button>
+                <button class="filter-remove-group" data-group-index="${groupIndex}" style="background: var(--danger); border: none; color: white; cursor: pointer; font-size: 1rem; padding: 0.25rem 0.5rem; border-radius: 4px; font-weight: 600;">×</button>
+              </div>
+            </div>
+            
+            ${filterGroup.conditions.map((condition, condIndex) => `
+              <div class="filter-controls" style="margin-bottom: ${condIndex < filterGroup.conditions.length - 1 ? '0.5rem' : '0'};">
+                <select data-group-index="${groupIndex}" data-cond-index="${condIndex}" data-type="operator">
+                  <option value="=" ${condition.operator === '=' ? 'selected' : ''}>=</option>
+                  <option value="!=" ${condition.operator === '!=' ? 'selected' : ''}>≠</option>
+                  <option value=">" ${condition.operator === '>' ? 'selected' : ''}>&gt;</option>
+                  <option value="<" ${condition.operator === '<' ? 'selected' : ''}>&lt;</option>
+                  <option value=">=" ${condition.operator === '>=' ? 'selected' : ''}>≥</option>
+                  <option value="<=" ${condition.operator === '<=' ? 'selected' : ''}>≤</option>
+                  <option value="contains" ${condition.operator === 'contains' ? 'selected' : ''}>enthält</option>
+                  <option value="notcontains" ${condition.operator === 'notcontains' ? 'selected' : ''}>enthält nicht</option>
+                </select>
+                <input type="${filterGroup.type === 'number' ? 'number' : filterGroup.type === 'date' ? 'date' : 'text'}" 
+                       value="${condition.value}" 
+                       placeholder="Wert..." 
+                       data-group-index="${groupIndex}" 
+                       data-cond-index="${condIndex}"
+                       style="min-width: 0; max-width: 100%;">
+                  ${filterGroup.conditions.length > 1 ? `
+                  <button class="filter-remove-condition" data-group-index="${groupIndex}" data-cond-index="${condIndex}" style="background: var(--danger); border: none; color: white; cursor: pointer; padding: 0.25rem 0.5rem; border-radius: 4px; font-weight: 600;">×</button>
+                ` : ''}
+              </div>
+              
+              ${condIndex < filterGroup.conditions.length - 1 ? `
+                <div style="display: flex; gap: 0.25rem; margin: 0.5rem 0; padding-left: 1rem;">
+                  <button class="local-logic-toggle" data-group-index="${groupIndex}" data-logic="AND" style="padding: 0.25rem 0.5rem; border: 1px solid var(--border); border-radius: 4px; background: ${filterGroup.localLogic === 'AND' ? 'var(--primary)' : 'var(--surface)'}; color: ${filterGroup.localLogic === 'AND' ? 'white' : 'var(--text)'}; cursor: pointer; font-size: 0.75rem; font-weight: 600;">UND</button>
+                  <button class="local-logic-toggle" data-group-index="${groupIndex}" data-logic="OR" style="padding: 0.25rem 0.5rem; border: 1px solid var(--border); border-radius: 4px; background: ${filterGroup.localLogic === 'OR' ? 'var(--primary)' : 'var(--surface)'}; color: ${filterGroup.localLogic === 'OR' ? 'white' : 'var(--text)'}; cursor: pointer; font-size: 0.75rem; font-weight: 600;">ODER</button>
+                </div>
+              ` : ''}
+            `).join('')}
+          </div>
+        `).join('');
+        
+        this.refs.filterDropZone.innerHTML = html;
+        
+        // Bind all filter events
+        this.bindFilterEvents();
+      },
+      
+      bindFilterEvents() {
+        const filterDropZone = this.refs.filterDropZone;
+        if (!filterDropZone) return;
+        
+        filterDropZone.querySelectorAll('.filter-remove-group').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            const groupIndex = parseInt(e.target.dataset.groupIndex);
+            const filters = AnalyseDesignerFramework.getState('filters');
+            filters.splice(groupIndex, 1);
+            AnalyseDesignerFramework.setState('filters', filters);
+            this.renderFilters();
+          });
+        });
+        
+        this.refs.filterDropZone.querySelectorAll('.filter-add-condition').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            const groupIndex = parseInt(e.target.dataset.groupIndex);
+            const filters = AnalyseDesignerFramework.getState('filters');
+            filters[groupIndex].conditions.push({
+              id: Date.now(),
+              operator: '=',
+              value: ''
+            });
+            AnalyseDesignerFramework.setState('filters', filters);
+            this.renderFilters();
+          });
+        });
+        
+        this.refs.filterDropZone.querySelectorAll('.filter-remove-condition').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            const groupIndex = parseInt(e.target.dataset.groupIndex);
+            const condIndex = parseInt(e.target.dataset.condIndex);
+            const filters = AnalyseDesignerFramework.getState('filters');
+            filters[groupIndex].conditions.splice(condIndex, 1);
+            AnalyseDesignerFramework.setState('filters', filters);
+            this.renderFilters();
+          });
+        });
+        
+        this.refs.filterDropZone.querySelectorAll('select[data-type="operator"]').forEach(select => {
+          select.addEventListener('change', (e) => {
+            const groupIndex = parseInt(e.target.dataset.groupIndex);
+            const condIndex = parseInt(e.target.dataset.condIndex);
+            const filters = AnalyseDesignerFramework.getState('filters');
+            filters[groupIndex].conditions[condIndex].operator = e.target.value;
+            AnalyseDesignerFramework.setState('filters', filters);
+            this.renderFilters();
+          });
+        });
+        
+        this.refs.filterDropZone.querySelectorAll('input[data-group-index]').forEach(input => {
+          input.addEventListener('change', (e) => {
+            const groupIndex = parseInt(e.target.dataset.groupIndex);
+            const condIndex = parseInt(e.target.dataset.condIndex);
+            const filters = AnalyseDesignerFramework.getState('filters');
+            filters[groupIndex].conditions[condIndex].value = e.target.value;
+            AnalyseDesignerFramework.setState('filters', filters);
+            this.renderFilters();
+          });
+        });
+        
+        this.refs.filterDropZone.querySelectorAll('.local-logic-toggle').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const groupIndex = parseInt(btn.dataset.groupIndex);
+            const logic = btn.dataset.logic;
+            const filters = AnalyseDesignerFramework.getState('filters');
+            filters[groupIndex].localLogic = logic;
+            AnalyseDesignerFramework.setState('filters', filters);
+            this.renderFilters(); // Re-render nach State-Änderung
+          });
+        });
+        
+        this.refs.filterDropZone.querySelectorAll('.filter-logic-toggle').forEach(btn => {
+          btn.addEventListener('click', () => {
+            if (btn.disabled) return;
+            const newLogic = btn.getAttribute('data-logic');
+            AnalyseDesignerFramework.setState('filterLogic', newLogic);
+            this.renderFilters(); // Re-render nach State-Änderung
+          });
+        });
+      },
+      
+      setupChartConfig() {
+        // X-Axis Drop Zone
+        this.refs.xAxisDropZone.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'copy';
+          this.refs.xAxisDropZone.classList.add('drag-over');
+        });
+        
+        this.refs.xAxisDropZone.addEventListener('dragleave', () => {
+          this.refs.xAxisDropZone.classList.remove('drag-over');
+        });
+        
+        this.refs.xAxisDropZone.addEventListener('drop', (e) => {
+          e.preventDefault();
+          this.refs.xAxisDropZone.classList.remove('drag-over');
+          const payload = e.dataTransfer.getData('application/json');
+          if (!payload || payload === 'undefined') {
+            AnalyseDesignerFramework.showNotification('⚠️ Ungültiges Drag-&-Drop-Objekt.', 'warning');
+            return;
+          }
+          let field;
+          try { field = JSON.parse(payload); } catch (err) {
+            AnalyseDesignerFramework.showNotification('⚠️ Ungültiges Drag-&-Drop-Objekt.', 'warning');
+            return;
+          }
+          AnalyseDesignerFramework.setState('xAxis', field);
+          this.refreshAxisChips();
+        });
+
+        
+        // Y-Axis Drop Zone
+        this.refs.yAxisDropZone.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'copy';
+          this.refs.yAxisDropZone.classList.add('drag-over');
+        });
+        
+        this.refs.yAxisDropZone.addEventListener('dragleave', () => {
+          this.refs.yAxisDropZone.classList.remove('drag-over');
+        });
+        
+        this.refs.yAxisDropZone.addEventListener('drop', (e) => {
+          e.preventDefault();
+          this.refs.yAxisDropZone.classList.remove('drag-over');
+          const payload = e.dataTransfer.getData('application/json');
+          if (!payload || payload === 'undefined') {
+            AnalyseDesignerFramework.showNotification('⚠️ Ungültiges Drag-&-Drop-Objekt.', 'warning');
+            return;
+          }
+          let field;
+          try { field = JSON.parse(payload); } catch (err) {
+            AnalyseDesignerFramework.showNotification('⚠️ Ungültiges Drag-&-Drop-Objekt.', 'warning');
+            return;
+          }
+          AnalyseDesignerFramework.setState('yAxis', field);
+          this.refreshAxisChips();
+        });
+
+        
+        // Chart Type Selector
+        this.refs.chartType.addEventListener('change', (e) => {
+          AnalyseDesignerFramework.setState('chartType', e.target.value);
+        });
+      },
+      
+      updateAxisDisplay() {
+        const xAxis = AnalyseDesignerFramework.getState('xAxis');
+        const yAxis = AnalyseDesignerFramework.getState('yAxis');
+
+        const renderChip = (host, axis, key) => {
+          if (!host) return;
+          if (axis && axis.table && axis.field) {
+            const label = `${axis.table}.${axis.field}`;
+            host.innerHTML = `
+              <div class="axis-field" style="display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:10px;background:linear-gradient(90deg,#1e90ff,#1792d2);color:#fff;font-weight:600;user-select:none;">
+                <span>${label}</span>
+                <button type="button" title="Achse leeren" style="border:none;background:rgba(255,255,255,0.2);width:22px;height:22px;border-radius:11px;cursor:pointer;font-weight:700;line-height:1;color:#fff;">×</button>
+              </div>`;
+            const btn = host.querySelector('button');
+            btn?.addEventListener('click', (e) => {
+              e.preventDefault();
+              AnalyseDesignerFramework.setState(key, null);
+              this.updateAxisDisplay();
+            });
+          } else {
+            host.innerHTML = '<span style="color: var(--text-muted); font-size: 0.875rem;">Feld hier ablegen</span>';
+          }
+        };
+
+        renderChip(this.refs.xAxisDropZone, xAxis, 'xAxis');
+        renderChip(this.refs.yAxisDropZone, yAxis, 'yAxis');
+      },
+
+      
+      updateChartType() {
+        const chartType = AnalyseDesignerFramework.getState('chartType');
+        this.refs.chartType.value = chartType;
+      }
+    });
+
+    // ============================================================================
+    // INITIALIZATION
+
+// ============================================================================
+    // RESULTS PANEL COMPONENT
+    // ============================================================================
+    
+    AnalyseDesignerFramework.registerComponent('ResultsPanel', {
+      template: `
+        <div class="panel results-container" data-ref="resultsPanel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">📊 Ergebnis</div>
+              <div class="panel-subtitle">Live Preview</div>
+            </div>
+            <div style="display: flex; gap: 0.5rem;">
+              <button class="btn btn-secondary" data-ref="btnExportCSV">📄 CSV Export</button>
+              <button class="btn btn-secondary" data-ref="btnExportExcel">📊 Excel Export</button>
+              <button class="btn btn-secondary" data-ref="btnBackToConfig">← Zurück</button>
+            </div>
+          </div>
+          <div class="panel-body">
+            <div class="kpi-grid" data-ref="kpiGrid"></div>
+            <div class="tabs">
+              <button class="tab active" data-tab="table">📋 Tabelle</button>
+              <button class="tab" data-tab="chart">📈 Diagramm</button>
+            </div>
+            <div class="tab-content active" data-ref="tabTable">
+              <div data-ref="resultsTableWrapper"></div>
+            </div>
+            <div class="tab-content" data-ref="tabChart">
+              <div class="chart-container">
+                <canvas data-ref="resultsChart"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+      `,
+      
+      mounted() {
+        this.setupTabs();
+        this.setupExport();
+        
+        this.refs.btnBackToConfig.addEventListener('click', () => {
+          this.backToConfig();
+        });
+        
+        AnalyseDesignerFramework.subscribe('stateChange:triggerAnalysis', () => {
+          this.runAnalysis();
+        });
+      },
+      
+      setupTabs() {
+        this.container.querySelectorAll('.tab').forEach(tab => {
+          tab.addEventListener('click', () => {
+            this.container.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            this.container.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            tab.classList.add('active');
+            const tabName = tab.dataset.tab;
+            if (tabName === 'table') {
+              this.refs.tabTable.classList.add('active');
+            } else if (tabName === 'chart') {
+              this.refs.tabChart.classList.add('active');
+            }
+          });
+        });
+      },
+      
+      setupExport() {
+        this.refs.btnExportCSV.addEventListener('click', () => this.exportToCSV());
+        this.refs.btnExportExcel.addEventListener('click', () => this.exportToExcel());
+      },
+      
+      async runAnalysis() {
+        // Dateimodus: Hinweis zeigen, aber NICHT abbrechen → unten greift der Demo-Fallback
+        if (location.protocol === 'file:') {
+          AnalyseDesignerFramework.showNotification(
+            'Datei-Modus (file://): Serveraufrufe blockiert – Demo-Daten werden lokal analysiert.',
+            'info'
+          );
+        }
+
+
+        const selectedFields = AnalyseDesignerFramework.getState('selectedFields');
+        
+        if (selectedFields.length === 0) {
+          AnalyseDesignerFramework.showNotification('⚠️ Bitte wähle mindestens ein Feld aus!', 'warning');
+          return;
+        }
+        
+        const mainTable = AnalyseDesignerFramework.getState('mainTable');
+        const tableJoins = AnalyseDesignerFramework.getState('tableJoins');
+        const filters = AnalyseDesignerFramework.getState('filters');
+        const joinFieldByTable = AnalyseDesignerFramework.getState('joinFieldByTable');
+        const xAxis = AnalyseDesignerFramework.getState('xAxis');
+        const yAxis = AnalyseDesignerFramework.getState('yAxis');
+
+        // Datei-Modus: lokaler Fallback auf Demo-Daten (kein CORS-Fehler)
+        if (location.protocol === 'file:') {
+          try {
+            const rows = [];
+            const oppByAcc = new Map();
+            (mockData?.Opportunity || []).forEach(o => {
+              const arr = oppByAcc.get(o.Account_ID) || [];
+              arr.push(o);
+              oppByAcc.set(o.Account_ID, arr);
+            });
+            (mockData?.Account || []).forEach(a => {
+              const opps = oppByAcc.get(a.Account_ID) || (selectedFields.some(f => f.table === 'Opportunity') ? [] : [{}]);
+              opps.forEach(o => {
+                const rec = {};
+                selectedFields.forEach(f => {
+                  if (f.table === 'Account') rec[`${f.table}.${f.field}`] = a[f.field] ?? '';
+                  else if (f.table === 'Opportunity') rec[`${f.table}.${f.field}`] = o[f.field] ?? '';
+                });
+                rows.push(rec);
+              });
+            });
+            // flexible Filter (unterstützt Gruppen/Conditions & Legacy-Format)
+            let filteredData = rows;
+            const filterLogic = (AnalyseDesignerFramework.getState('filterLogic') || 'AND').toUpperCase();
+
+            const evalCond = (row, cond, key) => {
+              const v = String(row[key] ?? '');
+              const t = String(cond.value ?? '');
+              if (cond.operator === 'contains') return v.toLowerCase().includes(t.toLowerCase());
+              return v === t; // '=' default
+            };
+
+            if (Array.isArray(filters) && filters.length && filters[0]?.conditions) {
+              // neues Gruppenformat
+              filteredData = rows.filter(row => {
+                const groupResults = filters.map(g => {
+                  const key = `${g.table}.${g.field}`;
+                  const localAnd = (g.localLogic || 'OR').toUpperCase() === 'AND';
+                  return localAnd
+                    ? g.conditions.every(c => evalCond(row, c, key))
+                    : g.conditions.some(c => evalCond(row, c, key));
+                });
+                return filterLogic === 'AND'
+                  ? groupResults.every(Boolean)
+                  : groupResults.some(Boolean);
+              });
+            } else {
+              // Legacy: flaches Format
+              (filters || []).forEach(fl => {
+                const key = `${fl.table}.${fl.field}`;
+                if (fl.operator === '=') {
+                  filteredData = filteredData.filter(r => String(r[key]) === String(fl.value));
+                } else if (fl.operator === 'contains') {
+                  filteredData = filteredData.filter(r => String(r[key]).toLowerCase().includes(String(fl.value).toLowerCase()));
+                }
+              });
+            }
+
+            AnalyseDesignerFramework.setState('lastAnalysisData', filteredData);
+            this.renderKPIs(filteredData);
+            this.renderMetricSparklines(filteredData);
+            this.renderResultsTable(filteredData);
+            if (xAxis && yAxis) this.renderChart(filteredData);
+            const mainContainer = document.querySelector('.container');
+            mainContainer.classList.add('results-mode');
+            this.refs.resultsPanel.classList.add('active');
+            return;
+          } catch (e) {
+            AnalyseDesignerFramework.showNotification('⚠️ Demo-Analyse lokal nicht möglich: ' + (e?.message || e), 'warning');
+          }
+        }
+        
+        // SERVER CALL: Führe Analyse auf dem Server aus
+        try {
+          AnalyseDesignerFramework.showNotification('⏳ Analyse wird ausgeführt.', 'info');
+          if (location.protocol === 'file:') {
+            AnalyseDesignerFramework.showNotification('Fehler bei der Analyse: Datei-Modus (file://) – CORS blockiert Serveraufrufe. Öffne die Seite via http(s) oder nutze Demo-Daten.', 'error');
+            return;
+          }
+          
+          const response = await fetch(API_ENDPOINTS.executeAnalysis, {
+
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              mainTable: mainTable,
+              selectedFields: selectedFields,
+              joins: tableJoins,
+              joinFieldByTable: joinFieldByTable,
+              filters: filters,
+              filterLogic: AnalyseDesignerFramework.getState('filterLogic')
+            })
+          });
+          
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+          
+          const result = await response.json();
+          
+          if (!result.success) {
+            AnalyseDesignerFramework.showNotification('❌ Analyse fehlgeschlagen: ' + (result.error || 'Unbekannter Fehler'), 'error');
+            return;
+          }
+          
+          const filteredData = result.data;
+          
+          // Rest bleibt gleich - KPIs, Table, Chart rendern
+          AnalyseDesignerFramework.setState('lastAnalysisData', filteredData);
+          
+          this.renderKPIs(filteredData);
+          this.renderResultsTable(filteredData);
+          if (xAxis && yAxis) this.renderChart(filteredData);
+          
+          const mainContainer = document.querySelector('.container');
+          mainContainer.classList.add('results-mode');
+          this.refs.resultsPanel.classList.add('active');
+          
+          AnalyseDesignerFramework.showNotification('✅ Analyse abgeschlossen!', 'success');
+          
+        } catch (error) {
+          console.error('Analysis failed:', error);
+          AnalyseDesignerFramework.showNotification('❌ Fehler bei der Analyse: ' + error.message, 'error');
+        }
+      },
+      
+      backToConfig() {
+        const mainContainer = document.querySelector('.container');
+        mainContainer.classList.remove('results-mode');
+        this.refs.resultsPanel.classList.remove('active');
+      },
+      
+      renderKPIs(data) {
+        const metrics = AnalyseDesignerFramework.getState('metrics');
+        const rowCount = data.length;
+        
+        let kpisHtml = `
+          <div class="kpi-card">
+            <div class="kpi-label">Datensätze</div>
+            <div class="kpi-value">${rowCount.toLocaleString('de-CH')}</div>
+          </div>
+        `;
+        
+        metrics.forEach(metric => {
+          const values = data.map(row => parseFloat(row[`${metric.table}.${metric.field}`]) || 0);
+          let value = 0;
+          
+          switch (metric.aggregation) {
+            case 'sum': value = values.reduce((a, b) => a + b, 0); break;
+            case 'avg': value = values.reduce((a, b) => a + b, 0) / values.length; break;
+            case 'min': value = Math.min(...values); break;
+            case 'max': value = Math.max(...values); break;
+            case 'count': value = values.length; break;
+          }
+          
+          kpisHtml += `
+            <div class="kpi-card">
+              <div class="kpi-label">${metric.aggregation.toUpperCase()}: ${metric.field}</div>
+              <div class="kpi-value">${value.toLocaleString('de-CH', { maximumFractionDigits: 0 })}</div>
+            </div>
+          `;
+        });
+        
+        if (metrics.length === 0) {
+          const selectedFields = AnalyseDesignerFramework.getState('selectedFields');
+          const numericFields = selectedFields.filter(f => f.type === 'number');
+          if (numericFields.length > 0) {
+            const firstNumField = numericFields[0];
+            const values = data.map(row => row[`${firstNumField.table}.${firstNumField.field}`] || 0);
+            const sumValue = values.reduce((a, b) => a + b, 0);
+            const avgValue = rowCount > 0 ? sumValue / rowCount : 0;
+            
+            kpisHtml += `
+              <div class="kpi-card">
+                <div class="kpi-label">Summe ${firstNumField.field}</div>
+                <div class="kpi-value">${sumValue.toLocaleString('de-CH', { maximumFractionDigits: 0 })}</div>
+              </div>
+              <div class="kpi-card">
+                <div class="kpi-label">Ø ${firstNumField.field}</div>
+                <div class="kpi-value">${avgValue.toLocaleString('de-CH', { maximumFractionDigits: 0 })}</div>
+              </div>
+            `;
+          }
+        }
+        
+        this.refs.kpiGrid.innerHTML = kpisHtml;
+      },
+      
+      renderResultsTable(data) {
+        const selectedFields = AnalyseDesignerFramework.getState('selectedFields');
+        
+        this.refs.resultsTableWrapper.innerHTML = '<table id="resultsTable" class="display" style="width:100%"></table>';
+        
+        const columns = selectedFields.map(f => {
+          const full = `${f.table}.${f.field}`;
+          return {
+            title: full,
+            data: null,
+            render: (data, type, row) => {
+              const value = row ? row[full] : data;
+              if (type === 'display' && value !== null && value !== undefined) {
+                if (f.type === 'number') return new Intl.NumberFormat('de-CH').format(value);
+                if (f.type === 'date') return new Date(value).toLocaleDateString('de-CH');
+              }
+              return value ?? '';
+            }
+          };
+        });
+        
+        new DataTable('#resultsTable', {
+          data: data,
+          columns: columns,
+          pageLength: 25,
+          language: {
+            search: 'Suchen:',
+            lengthMenu: '_MENU_ Einträge',
+            info: '_START_-_END_ von _TOTAL_',
+            infoEmpty: '0 Einträge',
+            infoFiltered: '(gefiltert)',
+            paginate: { first: '«', last: '»', next: '›', previous: '‹' }
+          }
+        });
+      },
+      
+      renderChart(data) {
+        const xAxis = AnalyseDesignerFramework.getState('xAxis');
+        const yAxis = AnalyseDesignerFramework.getState('yAxis');
+        const chartType = AnalyseDesignerFramework.getState('chartType');
+        
+        if (!xAxis || !yAxis) return;
+        
+        const grouped = {};
+        data.forEach(row => {
+          const xValue = row[`${xAxis.table}.${xAxis.field}`] || row[xAxis.field];
+          const yValue = parseFloat(row[`${yAxis.table}.${yAxis.field}`] || row[yAxis.field]) || 0;
+          if (!grouped[xValue]) grouped[xValue] = { sum: 0, count: 0 };
+          grouped[xValue].sum += yValue;
+          grouped[xValue].count += 1;
+        });
+        
+        const labels = Object.keys(grouped);
+        const values = labels.map(label => grouped[label].sum);
+        
+        const resultsChart = AnalyseDesignerFramework.getState('resultsChart');
+        if (resultsChart) resultsChart.destroy();
+        
+        const ctx = this.refs.resultsChart.getContext('2d');
+        const newChart = new Chart(ctx, {
+          type: chartType,
+          data: {
+            labels: labels,
+            datasets: [{
+              label: `${yAxis.table}.${yAxis.field}`,
+              data: values,
+              backgroundColor: 'rgba(37, 99, 235, 0.7)',
+              borderColor: 'rgba(37, 99, 235, 1)',
+              borderWidth: 2,
+              borderRadius: 6
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                labels: {
+                  color: '#0f172a',
+                  font: { size: 14, weight: '600' }
+                }
+              },
+              tooltip: {
+                backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                titleColor: '#0f172a',
+                bodyColor: '#0f172a',
+                borderColor: '#e2e8f0',
+                borderWidth: 1,
+                padding: 12,
+                displayColors: true,
+                callbacks: {
+                  label: (context) => `${context.dataset.label}: ${context.parsed.y.toLocaleString('de-CH')}`
+                }
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                grid: { color: '#f1f5f9' },
+                ticks: {
+                  color: '#64748b',
+                  callback: (value) => value.toLocaleString('de-CH')
+                }
+              },
+              x: {
+                grid: { display: false },
+                ticks: { color: '#64748b' }
+              }
+            }
+          }
+        });
+        
+        AnalyseDesignerFramework.setState('resultsChart', newChart);
+      },
+      
+      exportToCSV() {
+        const lastAnalysisData = AnalyseDesignerFramework.getState('lastAnalysisData');
+        const selectedFields = AnalyseDesignerFramework.getState('selectedFields');
+        
+        if (!lastAnalysisData || lastAnalysisData.length === 0) {
+          AnalyseDesignerFramework.showNotification('❌ Keine Daten zum Exportieren. Führe zuerst eine Analyse aus.', 'error');
+          return;
+        }
+        
+        try {
+          const headers = selectedFields.map(f => `${f.table}.${f.field}`);
+          let csv = headers.join(',') + '\n';
+          
+          lastAnalysisData.forEach(row => {
+            const values = selectedFields.map(f => {
+              const fullName = `${f.table}.${f.field}`;
+              let value = row[fullName];
+              
+              if (value === null || value === undefined) return '';
+              if (typeof value === 'string' && value.includes(',')) {
+                return `"${value.replace(/"/g, '""')}"`;
+              }
+              return value;
+            });
+            csv += values.join(',') + '\n';
+          });
+          
+          const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+          const link = document.createElement('a');
+          const url = URL.createObjectURL(blob);
+          
+          link.setAttribute('href', url);
+          link.setAttribute('download', `analyse_${new Date().toISOString().split('T')[0]}.csv`);
+          link.style.visibility = 'hidden';
+          
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          
+          AnalyseDesignerFramework.showNotification('✅ CSV Export erfolgreich!', 'success');
+          
+        } catch (error) {
+          console.error('CSV Export failed:', error);
+          AnalyseDesignerFramework.showNotification('❌ Fehler beim CSV Export: ' + error.message, 'error');
+        }
+      },
+      
+      exportToExcel() {
+        const lastAnalysisData = AnalyseDesignerFramework.getState('lastAnalysisData');
+        const selectedFields = AnalyseDesignerFramework.getState('selectedFields');
+        
+        if (!lastAnalysisData || lastAnalysisData.length === 0) {
+          AnalyseDesignerFramework.showNotification('❌ Keine Daten zum Exportieren. Führe zuerst eine Analyse aus.', 'error');
+          return;
+        }
+        
+        try {
+          let html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
+          html += '<head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>';
+          html += '<x:Name>Analyse</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet>';
+          html += '</x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>';
+          html += '<table border="1">';
+          
+          html += '<thead><tr>';
+          selectedFields.forEach(f => {
+            html += `<th style="background-color: #2563eb; color: white; font-weight: bold; padding: 8px;">${f.table}.${f.field}</th>`;
+          });
+          html += '</tr></thead>';
+          
+          html += '<tbody>';
+          lastAnalysisData.forEach(row => {
+            html += '<tr>';
+            selectedFields.forEach(f => {
+              const fullName = `${f.table}.${f.field}`;
+              let value = row[fullName];
+              
+              if (value === null || value === undefined) value = '';
+              
+              if (f.type === 'number') {
+                html += `<td style="text-align: right; padding: 6px;">${new Intl.NumberFormat('de-CH').format(value)}</td>`;
+              } else if (f.type === 'date') {
+                html += `<td style="padding: 6px;">${new Date(value).toLocaleDateString('de-CH')}</td>`;
+              } else {
+                html += `<td style="padding: 6px;">${value}</td>`;
+              }
+            });
+            html += '</tr>';
+          });
+          html += '</tbody></table></body></html>';
+          
+          const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
+          const link = document.createElement('a');
+          const url = URL.createObjectURL(blob);
+          
+          link.setAttribute('href', url);
+          link.setAttribute('download', `analyse_${new Date().toISOString().split('T')[0]}.xls`);
+          link.style.visibility = 'hidden';
+          
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          
+          AnalyseDesignerFramework.showNotification('✅ Excel Export erfolgreich!', 'success');
+          
+        } catch (error) {
+          console.error('Excel Export failed:', error);
+          AnalyseDesignerFramework.showNotification('❌ Fehler beim Excel Export: ' + error.message, 'error');
+        }
+      }
+    });
+
+    // ============================================================================
+    // INITIALIZATION
+    // ============================================================================
+
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('🚀 Analyse Designer Framework v' + AnalyseDesignerFramework.version);
+      
+      // Bootstrap Application
+      AnalyseDesignerFramework.bootstrap({
+        root: '#app',
+        initialState: {
+          schema: schema,
+          mockData: mockData,
+          mainTable: null,
+          selectedFields: [],
+          filters: [],
+          metrics: [],
+          xAxis: null,
+          yAxis: null,
+          chartType: 'bar',
+          tableJoins: [],
+          joinFieldByTable: {},
+          columnAggregations: {},
+          lastAnalysisData: null,
+          dataTable: null,
+          resultsChart: null,
+          searchSelectedIndex: 0,
+          currentContextColumn: null,
+          filterLogic: 'AND'
+        }
+      });
+      
+      console.log('✅ State initialized');
+      console.log('📊 Demo Data available:', {
+        accounts: mockData.Account.length,
+        contacts: mockData.Contact.length,
+        opportunities: mockData.Opportunity.length
+      });
+      
+      // ========================================================================
+      // EXPOSE FRAMEWORK GLOBALLY FOR DEBUGGING
+      // ========================================================================
+      
+      window.AnalyseDesigner = AnalyseDesignerFramework;
+      console.log('💡 Framework exposed as window.AnalyseDesigner');
+      console.log('💡 Use AnalyseDesigner.getState() to inspect state');
+      console.log('💡 Use AnalyseDesigner.getComponent("Name") to access components');
+      
+      console.log('🎉 Analyse Designer ready!');
+    });
+    </script>
+</body>
+</html>
